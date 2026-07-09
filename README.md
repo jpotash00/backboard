@@ -24,14 +24,21 @@ eval/                   Milestone 1
   personas.py           10 synthetic churners, each an LLM roleplay w/ a hidden reason
   scoring.py            the 5 scores + the dropdown baseline (pure, testable)
   run_eval.py           the blind harness — run this
-tests/                  pytest — spine invariants, no API needed
+api/                    Milestone 2 — the FastAPI session engine
+  schemas.py            request/response wire models (mirror the SDK types)
+  registry.py           publishable-key -> customer ProductConfig
+  store.py              in-memory session store (Redis-shaped interface)
+  service.py            interviewer + policy orchestration (framework-agnostic)
+  transcripts.py        JSONL logging of every completed session — the data asset
+  app.py                the FastAPI app: /health, /sessions, /sessions/:id/turn
+tests/                  pytest — spine invariants + API flow, no live API key needed
 sdk/                    the web SDK (npm package `offboard`) — see sdk/README.md
 ```
 
 The **npm package** (`sdk/`) is the drop-in cancel-flow SDK (Milestone 3). Its public
-API and the wire contract are done and type-check today; it goes end-to-end once the
-Milestone 2 session API is deployed. It shares the exact `Outcome` shape defined in
-`engine/taxonomy.py`.
+API and the wire contract are done and type-check today; point its `apiBaseUrl` at the
+Milestone 2 server (below) and it runs end-to-end. It shares the exact `Outcome` shape
+defined in `engine/taxonomy.py`.
 
 ## Run the eval
 
@@ -44,6 +51,32 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 python -m eval.run_eval     # prints full transcripts + scores, logs to runs/
 ```
+
+## Run the API (Milestone 2)
+
+```bash
+pip install -e ".[api]"       # or ".[dev]"
+export ANTHROPIC_API_KEY=sk-ant-...
+python -m api.app             # serves on :8000 (PORT env to change)
+```
+
+Then, with the demo customer key (`pk_demo_acme`):
+
+```bash
+# open a session
+curl -s localhost:8000/sessions -H "Authorization: Bearer pk_demo_acme" \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"u1","plan":"Starter","mrr":49,"tenure_days":210,
+       "logins_last_30d":27,"activated":true,
+       "usage_summary":"Daily active; constantly hitting the event cap."}'
+# -> { "session_id": "...", "message": "..." }
+
+# answer a turn (repeat until {"done": true, "outcome": {...}})
+curl -s localhost:8000/sessions/<session_id>/turn -H "Authorization: Bearer pk_demo_acme" \
+  -H 'content-type: application/json' -d '{"user_message":"it is too expensive"}'
+```
+
+Every completed session is appended to `runs/sessions.jsonl` (transcript + outcome).
 
 ## Run the tests (no API key required)
 
