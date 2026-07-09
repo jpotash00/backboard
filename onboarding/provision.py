@@ -108,10 +108,11 @@ def build_record(spec: dict, *, signing_secret: Optional[str] = None) -> dict:
     }
 
 
-def write_customer_file(record: dict, config_dir: str) -> Path:
-    """Write the envelope as <config_dir>/<customer_id>.json. Refuses to clobber an existing file
-    -- overwriting would silently rotate that customer's signing_secret and break live sessions;
-    delete it deliberately to re-provision.
+def write_customer_file(record: dict, config_dir: str, *, overwrite: bool = False) -> Path:
+    """Write the envelope as <config_dir>/<customer_id>.json. By default refuses to clobber an
+    existing file -- an accidental overwrite would silently rotate that customer's signing_secret
+    and break live sessions; delete it deliberately to re-provision. `overwrite=True` is for a
+    deliberate UPDATE that carries the SAME signing_secret forward (see api.service.update_customer).
 
     The signing_secret is encrypted AT THIS BOUNDARY (not in build_record) when a master key is
     configured, so the plaintext still reaches the one-time reveal (API response / CLI print)
@@ -127,7 +128,7 @@ def write_customer_file(record: dict, config_dir: str) -> Path:
     except OSError:
         pass  # best-effort; some mounts don't allow chmod
     path = directory / f"{record['customer_id']}.json"
-    if path.exists():
+    if path.exists() and not overwrite:
         raise ProvisionError(
             f"{path} already exists; refusing to overwrite (that would rotate the signing_secret). "
             "Delete it first to re-provision."

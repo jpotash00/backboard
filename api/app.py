@@ -29,6 +29,7 @@ from .ratelimit import RateLimiter, RateLimitExceeded
 from .registry import Customer, CustomerRegistry, default_registry
 from .schemas import (
     ConfigSpecRequest,
+    ConfigUpdateRequest,
     CreateSessionRequest,
     CreateSessionResponse,
     OutcomeReport,
@@ -38,14 +39,17 @@ from .schemas import (
 )
 from .service import (
     ConfigConflict,
+    CustomerNotFound,
     IdentityRejected,
     SessionNotFound,
     create_customer_from_spec,
+    delete_customer,
     list_customers,
     record_outcome,
     record_resolution,
     run_turn,
     start_session,
+    update_customer,
 )
 from .store import SessionStore
 from .transcripts import TranscriptLogger
@@ -166,7 +170,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins or ["*"],
-        allow_methods=["POST", "GET", "OPTIONS"],
+        allow_methods=["POST", "GET", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -333,6 +337,48 @@ def create_app(
         if not signup_key:
             raise HTTPException(status_code=404, detail="not found")
         return FileResponse(Path(__file__).parent / "onboard.html")
+
+    def authorize_manage(customer_id: str, authorization: str) -> None:
+        """Auth for editing/deleting a specific tenant. Accepts EITHER the master admin key (you,
+        as superuser, can manage any tenant for support) OR that tenant's own signing_secret (the
+        customer, from their backend, can manage ONLY their own). Isolation is automatic: you can
+        only touch a tenant whose secret you hold, and each customer holds only their own. A wrong
+        or missing credential is a flat 401 whether or not the tenant exists (no existence leak)."""
+        prefix = "Bearer "
+        presented = authorization[len(prefix):].strip() if authorization.startswith(prefix) else ""
+        if not presented:
+            raise HTTPException(status_code=401, detail="missing bearer token")
+        if admin_key and hmac.compare_digest(presented, admin_key):
+            return  # superuser
+        customer = registry.get_by_id(customer_id)
+        if customer and customer.signing_secret and hmac.compare_digest(presented, customer.signing_secret):
+            return  # tenant owner, via its own signing_secret
+        raise HTTPException(status_code=401, detail="not authorized to manage this customer")
+
+    @app.patch("/configs/{customer_id}")
+    def update_config(
+        customer_id: str, req: ConfigUpdateRequest, authorization: str = Header(default="")
+    ) -> dict:
+        # Self-serve or admin edit of a tenant's mutable config. Preserves customer_id/public_key/
+        # signing_secret so a live SDK and in-flight identity tokens keep working across the edit.
+        from onboarding.provision import ProvisionError
+
+        authorize_manage(customer_id, authorization)
+        try:
+            return update_customer(customer_id, req.model_dump(), registry, config_dir)
+        except CustomerNotFound:
+            raise HTTPException(status_code=404, detail="customer not found")
+        except ProvisionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+    @app.delete("/configs/{customer_id}")
+    def delete_config(customer_id: str, authorization: str = Header(default="")) -> dict:
+        # De-provision a tenant: its key stops resolving on the next request and the file is removed.
+        authorize_manage(customer_id, authorization)
+        try:
+            return delete_customer(customer_id, registry, config_dir)
+        except CustomerNotFound:
+            raise HTTPException(status_code=404, detail="customer not found")
 
     return app
 

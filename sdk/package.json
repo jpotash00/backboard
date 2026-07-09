@@ -25,7 +25,7 @@
     "prepack": "npm run build"
   },
   "keywords": ["churn", "cancel-flow", "retention", "exit-interview", "sdk"],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },

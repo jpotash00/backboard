@@ -7,6 +7,7 @@ diagnoses, `policy.decide` authorizes -- the model never picks the intervention.
 
 import json
 from dataclasses import asdict, replace
+from pathlib import Path
 from uuid import uuid4
 
 from engine import Interviewer, UserContext, decide
@@ -39,6 +40,10 @@ class ConfigConflict(Exception):
     """A customer with that id or public key already exists (create-only endpoint)."""
 
 
+class CustomerNotFound(Exception):
+    """No customer with that id to update or delete."""
+
+
 def create_customer_from_spec(spec: dict, registry, config_dir: str) -> dict:
     """Provision a new customer at runtime: validate the spec, mint a signing secret, persist
     the file (so it survives restarts), and hot-register it into the LIVE registry -- the
@@ -64,6 +69,57 @@ def create_customer_from_spec(spec: dict, registry, config_dir: str) -> dict:
     path = write_customer_file(record, config_dir)  # no-clobber on disk too
     registry.register(load_customer_file(path))     # hot-register: live, no restart
     return record
+
+
+def update_customer(customer_id: str, updates: dict, registry, config_dir: str) -> dict:
+    """Edit an existing customer's mutable config (product facts, offers, competitors, origins).
+    Preserves the IDENTITY that live integrations depend on -- same customer_id, same public_key,
+    and the SAME signing_secret (so in-flight identity tokens and the deployed SDK keep working).
+    Re-validates, re-writes the file (overwrite), and hot-updates the live registry -- effective
+    on the next request, no restart.
+
+    Raises CustomerNotFound if there's no such tenant, ProvisionError on an invalid update."""
+    from onboarding.provision import ProvisionError, build_record, write_customer_file
+
+    existing = registry.get_by_id(customer_id)
+    if existing is None:
+        raise CustomerNotFound(customer_id)
+    if not config_dir:
+        raise ProvisionError("OFFBOARD_CONFIG_DIR is not set; cannot persist an update")
+
+    spec = {
+        "customer_id": existing.id,
+        "public_key": existing.public_key,          # keep the key their SDK ships
+        "product": updates["product"],
+        "offers": updates["offers"],
+        "competitors": updates.get("competitors", []),
+        "allowed_origins": updates.get("allowed_origins", []),
+    }
+    # Carry the EXISTING signing_secret forward -- an update must never rotate it.
+    record = build_record(spec, signing_secret=existing.signing_secret)
+    path = write_customer_file(record, config_dir, overwrite=True)
+    registry.register(load_customer_file(path))     # same public_key -> replaces in place
+    return {
+        "status": "updated",
+        "customer_id": record["customer_id"],
+        "public_key": record["public_key"],
+        "offers": len(record["config"]["interventions"]),
+    }
+
+
+def delete_customer(customer_id: str, registry, config_dir: str) -> dict:
+    """De-provision a customer: drop it from the live registry (its key stops resolving on the
+    next request) and remove its stored file so it doesn't reload on restart. Idempotent-ish --
+    raises CustomerNotFound only if it isn't registered."""
+    existing = registry.get_by_id(customer_id)
+    if existing is None:
+        raise CustomerNotFound(customer_id)
+    registry.unregister(existing.public_key)
+    if config_dir:
+        path = Path(config_dir) / f"{customer_id}.json"
+        if path.exists():
+            path.unlink()
+    return {"status": "deleted", "customer_id": customer_id}
 
 
 def list_customers(registry) -> list[dict]:

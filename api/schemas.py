@@ -41,6 +41,17 @@ class ConfigSpecRequest(BaseModel):
     competitors: list[str] = Field(default_factory=list)
 
 
+class ConfigUpdateRequest(BaseModel):
+    """PATCH /configs/{id} body: the mutable part of a customer's config. Replaces product facts,
+    the offer menu, competitors and origins. The IDENTITY fields are deliberately NOT here --
+    customer_id is immutable, and public_key + signing_secret are preserved so a live SDK and any
+    in-flight identity tokens keep working across an edit."""
+    product: ProductFacts
+    offers: list[OfferSpec] = Field(min_length=1)
+    allowed_origins: list[str] = Field(default_factory=list)
+    competitors: list[str] = Field(default_factory=list)
+
+
 class CreateSessionRequest(BaseModel):
     """POST /sessions body. Only `user_id` is required; the richer the behavioral
     context, the better the diagnosis disambiguates the cover story (constraint #6).

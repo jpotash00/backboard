@@ -39,6 +39,11 @@ class CustomerRegistry:
     def register(self, customer: Customer) -> None:
         self._by_key[customer.public_key] = customer
 
+    def unregister(self, public_key: str) -> None:
+        """Drop a customer from the live registry (delete / de-provision). Its publishable key
+        stops resolving on the next request, so sessions under it 401."""
+        self._by_key.pop(public_key, None)
+
     def get_by_key(self, public_key: str) -> Optional[Customer]:
         return self._by_key.get(public_key)
 
