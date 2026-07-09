@@ -431,6 +431,9 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 | `intervention_id` | string \| null | the authorized action's id, or null (fall back) |
 | `rationale` | string | human-readable "why this action" |
 | `turns_used` | number | questions it took (≤ 3) |
+| `mode` | string | `defer` \| `suggest` \| `act` — whether the offer is cleared to auto-apply or should be recommended for review ([DECISIONING.md §2.2](DECISIONING.md)) |
+| `corroboration` | object | did the behavioral data back the diagnosis; the confidence it adjusted to |
+| `economics` / `decision_trace` | object / array | the declared, auditable decision record |
 
 `onResolved` receives a **`ResolvedOutcome`** = the `Outcome` above plus a resolved
 `intervention` object — the authorized action spelled out so you can render the offer

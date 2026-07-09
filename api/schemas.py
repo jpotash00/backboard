@@ -44,6 +44,10 @@ class OutcomeModel(BaseModel):
     # stake + margin spent, and every option considered with its cost/EV and verdict.
     economics: Optional[dict[str, Any]] = None
     decision_trace: list[dict[str, Any]] = Field(default_factory=list)
+    # "defer" | "suggest" | "act" -- how far policy will go on this confidence.
+    mode: str = "defer"
+    # Whether the behavioral data backed the diagnosis, and the confidence it adjusted to.
+    corroboration: Optional[dict[str, Any]] = None
 
 
 class InterventionModel(BaseModel):

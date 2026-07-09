@@ -34,22 +34,37 @@ def decide(outcome: Outcome, config: ProductConfig, user: UserContext) -> Outcom
     value = round(user.mrr * scoring.value_horizon_months, 2)
     p_save = scoring.save_probability(outcome.reason)
 
+    # Corroboration: does the behavioral data back the model's story? If it contradicts,
+    # penalize confidence -- this is the guard on the confident-and-wrong case. We gate on
+    # the resulting EFFECTIVE confidence, never touching the model's raw self-report.
+    corr = _corroborate(outcome, policy, user)
+    penalty = policy.contradiction_penalty if corr["status"] == "contradicted" else 0.0
+    eff = max(0.0, round(outcome.confidence - penalty, 4))
+    corr.update(raw_confidence=outcome.confidence, penalty=penalty,
+                effective_confidence=eff)
+    outcome.corroboration = corr
+
     outcome.economics = {
         "customer_value": value,
         "value_horizon_months": scoring.value_horizon_months,
         "save_probability": p_save,
         "rank_by": policy.rank_by,
+        "effective_confidence": eff,
         "margin_spent": 0.0,
     }
     trace: list = []
 
-    # 1. Confidence floor -- an honest "I don't know" beats a confident wrong save.
-    if outcome.confidence < floor or outcome.reason == "unknown":
+    # 1. Floor -- on EFFECTIVE confidence, so a data-contradicted story can defer. An honest
+    #    "I don't know" beats a confident wrong save.
+    if eff < floor or outcome.reason == "unknown":
         outcome.intervention_id, outcome.savable = None, False
-        outcome.rationale = (f"confidence {outcome.confidence:.2f} below floor "
-                             f"{floor} -- deferring to your generic cancel flow")
+        outcome.mode = "defer"
+        why = f"contradicted by behavioral data ({corr['rule']}); " if penalty else ""
+        outcome.rationale = (f"{why}effective confidence {eff:.2f} below floor {floor} "
+                             f"-- deferring to your generic cancel flow")
         trace.append({"decision": "defer", "gate": "confidence_floor",
-                      "confidence": outcome.confidence, "floor": floor})
+                      "effective_confidence": eff, "floor": floor,
+                      "corroboration": corr["status"]})
         outcome.decision_trace = trace
         return outcome
 
@@ -58,6 +73,7 @@ def decide(outcome: Outcome, config: ProductConfig, user: UserContext) -> Outcom
         pause_id = _find(config, "pause")
         outcome.savable = False
         outcome.intervention_id = pause_id
+        outcome.mode = _mode(eff, policy)
         outcome.rationale = ("need genuinely ended -- offering a pause, not a discount. "
                              "Spending margin here retains no one.")
         outcome.economics["margin_spent"] = scoring.cost_of("pause") if pause_id else 0.0
@@ -86,9 +102,9 @@ def decide(outcome: Outcome, config: ProductConfig, user: UserContext) -> Outcom
             entry.update(eligible=False, rejected=f"ineligible ({rule})")
             candidates.append((None, entry))
             continue
-        if outcome.confidence < required:
+        if eff < required:
             entry.update(eligible=False,
-                         rejected=f"confidence {outcome.confidence:.2f} < required "
+                         rejected=f"effective confidence {eff:.2f} < required "
                                   f"{required:.2f} for a {iv.type}")
             candidates.append((None, entry))
             continue
@@ -99,6 +115,7 @@ def decide(outcome: Outcome, config: ProductConfig, user: UserContext) -> Outcom
 
     if not eligible:
         outcome.intervention_id, outcome.savable = None, False
+        outcome.mode = "defer"
         outcome.rationale = f"no authorized intervention matches {outcome.reason}"
         outcome.decision_trace = [e for _, e in candidates]
         return outcome
@@ -113,13 +130,38 @@ def decide(outcome: Outcome, config: ProductConfig, user: UserContext) -> Outcom
 
     chosen_entry["chosen"] = True
     outcome.intervention_id = chosen.id
+    outcome.mode = _mode(eff, policy)
     outcome.economics["margin_spent"] = chosen_entry["cost"]
     outcome.economics["chosen_expected_value"] = chosen_entry["expected_value"]
     outcome.rationale = (f"{outcome.reason} -> {chosen.type}: {chosen.description} "
                          f"[{method}; EV={chosen_entry['expected_value']}, "
-                         f"margin={chosen_entry['cost']}]")
+                         f"margin={chosen_entry['cost']}; {outcome.mode}]")
     outcome.decision_trace = [e for _, e in candidates]
     return outcome
+
+
+def _mode(effective_confidence: float, policy: Policy) -> str:
+    """Above the act bar we're confident enough to auto-apply; between floor and act we
+    only recommend (the company/ops decides); below floor we've already deferred."""
+    return "act" if effective_confidence >= policy.act_confidence else "suggest"
+
+
+def _corroborate(outcome: Outcome, policy: Policy, user: UserContext) -> dict:
+    """Check the diagnosis against the behavioral data. Returns a declared verdict:
+    corroborated / contradicted / unverified (no rule for this reason)."""
+    rule = policy.corroboration.get(outcome.reason)
+    if not rule:
+        return {"status": "unverified", "rule": None}
+    ok = _eval_rule(rule, _scope(outcome, user))
+    return {"status": "corroborated" if ok else "contradicted", "rule": rule}
+
+
+def _scope(outcome: Outcome, user: UserContext) -> dict:
+    """The fields a rule (eligible_when or corroboration) may reference."""
+    return {"reason": outcome.reason, "confidence": outcome.confidence,
+            "tenure": user.tenure_days, "mrr": user.mrr,
+            "activated": user.activated, "logins": user.logins_last_30d,
+            **user.signals}
 
 
 def _eligible(iv: Intervention, outcome: Outcome, user: UserContext, policy: Policy) -> bool:
@@ -128,11 +170,7 @@ def _eligible(iv: Intervention, outcome: Outcome, user: UserContext, policy: Pol
         return False
     if not iv.eligible_when:
         return True
-    scope = {"reason": outcome.reason, "confidence": outcome.confidence,
-             "tenure": user.tenure_days, "mrr": user.mrr,
-             "activated": user.activated, "logins": user.logins_last_30d,
-             **user.signals}
-    return _eval_rule(iv.eligible_when, scope)
+    return _eval_rule(iv.eligible_when, _scope(outcome, user))
 
 
 # --------------------------------------------------------------------------------------

@@ -44,6 +44,9 @@ def config_to_dict(c: ProductConfig) -> dict[str, Any]:
             "discount_reasons": sorted(c.policy.discount_reasons),
             "let_go_reasons": sorted(c.policy.let_go_reasons),
             "rank_by": c.policy.rank_by,
+            "corroboration": dict(c.policy.corroboration),
+            "contradiction_penalty": c.policy.contradiction_penalty,
+            "act_confidence": c.policy.act_confidence,
             "scoring": {
                 "value_horizon_months": c.policy.scoring.value_horizon_months,
                 "type_cost": dict(c.policy.scoring.type_cost),
@@ -85,6 +88,12 @@ def config_from_dict(data: dict[str, Any]) -> ProductConfig:
         pol_kwargs["let_go_reasons"] = set(pol["let_go_reasons"])
     if "rank_by" in pol:
         pol_kwargs["rank_by"] = pol["rank_by"]
+    if "corroboration" in pol:
+        pol_kwargs["corroboration"] = dict(pol["corroboration"])
+    if "contradiction_penalty" in pol:
+        pol_kwargs["contradiction_penalty"] = pol["contradiction_penalty"]
+    if "act_confidence" in pol:
+        pol_kwargs["act_confidence"] = pol["act_confidence"]
     if "scoring" in pol and pol["scoring"]:
         sc = pol["scoring"]
         sc_kwargs: dict[str, Any] = {}

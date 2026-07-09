@@ -41,6 +41,12 @@ export interface Outcome {
   /** Every option policy considered, each with its cost/expected_value and why it won or
    * was rejected — so an authorized spend is fully traceable. */
   decision_trace?: Array<Record<string, unknown>>;
+  /** How far policy will go on this confidence: "defer" (nothing — fall back), "suggest"
+   * (recommend the offer for the company/ops to apply), or "act" (auto-apply). */
+  mode?: "defer" | "suggest" | "act";
+  /** Whether the behavioral data backed the diagnosis (corroborated / contradicted /
+   * unverified) and the confidence it was adjusted to. */
+  corroboration?: Record<string, unknown> | null;
 }
 
 /** An authorized action from the customer's own menu, spelled out so the host can

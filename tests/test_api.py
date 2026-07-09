@@ -87,6 +87,9 @@ def test_full_session_never_activated_gets_onboarding(tmp_path):
     # The decision is declared end-to-end: economics + an auditable trace over the wire.
     assert out["economics"]["customer_value"] == out["economics"]["customer_value"]
     assert any(e.get("chosen") for e in out["decision_trace"])
+    # never_activated + activated:false = corroborated; at 0.9 that's confident enough to act.
+    assert out["corroboration"]["status"] == "corroborated"
+    assert out["mode"] == "act"
 
     # Transcript logged for the data asset.
     log = (tmp_path / "sessions.jsonl").read_text().strip()

@@ -39,7 +39,14 @@ does so with **visible economics**.
 trail onto the outcome (`economics` + `decision_trace`).
 
 ```
-1. CONFIDENCE FLOOR   confidence < floor (or reason == unknown)?
+0. CORROBORATE        does the behavioral data back the diagnosis?
+                      (policy.corroboration[reason], same mini-language as eligible_when)
+                        corroborated  -> no change
+                        contradicted  -> effective_confidence = confidence - penalty
+                        unverified    -> no rule for this reason; no change
+                      Everything below gates on EFFECTIVE confidence.
+
+1. CONFIDENCE FLOOR   effective < floor (or reason == unknown)?
                       -> authorize nothing; defer to the host's generic flow.
                       (An honest "I don't know" beats a confident wrong save.)
 
@@ -49,16 +56,55 @@ trail onto the outcome (`economics` + `decision_trace`).
 3. SCORE              for each option in policy.preferred[reason]:
                         - is it in the menu?         (else: rejected, declared)
                         - is it eligible?            (discount gate + eligible_when rule)
-                        - does confidence clear its per-type bar?
+                        - does effective confidence clear its per-type bar?
                         - compute cost + expected value
                       Every option — chosen or rejected — is recorded with the reason.
 
 4. SELECT             rank_by == "preferred"      -> first eligible in the curated order
                       rank_by == "expected_value" -> highest EV among eligible
+
+5. MODE               read off effective confidence:
+                        below floor        -> defer   (handled at step 1)
+                        floor..act_conf    -> suggest (recommend; company/ops decides)
+                        >= act_confidence  -> act     (confident enough to auto-apply)
 ```
 
 Nothing here is a model call. Given the same diagnosis and config, the decision is
 identical every time.
+
+### 2.1 Corroboration — the confident-and-wrong guard
+
+The interviewer already sees the behavioral data, so contradictions *should* be rare. This
+is the safety net for when the model ignores the data and is confidently wrong anyway — the
+dangerous quadrant. Each reason carries an expectation of what the data should look like:
+
+```python
+corroboration = {          # suggested defaults; same mini-language as eligible_when
+    "never_activated":      "activated == false",   # a "never activated" who IS active = lie
+    "price_value_mismatch": "activated == true",    # a price complaint from a real user
+    "value_ended":          "logins < 3",            # a genuine usage cliff
+    "involuntary":          "logins > 5",            # still active — didn't mean to cancel
+}
+```
+
+Contradiction subtracts `contradiction_penalty` (default 0.25) from the model's confidence.
+The model's raw self-report is never mutated — the penalty produces an **effective
+confidence** that everything downstream gates on, and both numbers are declared.
+
+### 2.2 The suggest / act tiers
+
+The output is a **suggestion by default; it only acts at high confidence.** The effective
+confidence lands in one of three tiers:
+
+| Effective confidence | `mode` | Meaning |
+|---|---|---|
+| below `confidence_floor` (0.6) | `defer` | authorize nothing; fall back to the generic flow |
+| `floor` … `act_confidence` | `suggest` | recommend the offer — the company/ops decides whether to apply it |
+| ≥ `act_confidence` (0.85) | `act` | confident enough to auto-apply (e.g. a billing integration may execute it) |
+
+`suggest` still names the offer; `mode` just tells the host whether it's cleared to apply
+it automatically or should route it for review. A contradiction that stays above the floor
+still lowers effective confidence — which can correctly drop a would-be `act` to `suggest`.
 
 ---
 
@@ -124,8 +170,11 @@ user would have gotten the discount. That delta is the product.
 Every `Outcome` carries the decision, spelled out, so spend is auditable and analyzable.
 It flows unchanged through the API turn response and into `runs/sessions.jsonl`.
 
-- **`economics`** — `customer_value`, `save_probability`, `rank_by`, `margin_spent`, and
-  (when an action fires) `chosen_expected_value`.
+- **`mode`** — `defer` | `suggest` | `act` (§2.2). How far policy is cleared to go.
+- **`corroboration`** — `status` (corroborated/contradicted/unverified), the `rule`,
+  `raw_confidence`, `penalty`, and `effective_confidence`. Why the confidence moved.
+- **`economics`** — `customer_value`, `save_probability`, `effective_confidence`,
+  `rank_by`, `margin_spent`, and (when an action fires) `chosen_expected_value`.
 - **`decision_trace`** — one entry per option considered: its `type`, `cost`,
   `effectiveness`, `expected_value`, `required_confidence`, `eligible`, a `rejected`
   reason when excluded, and `chosen: true` on the winner. A gated-off discount **says so**
@@ -144,7 +193,9 @@ Everything below is per-customer config; the engine code is untouched.
 |---|---|
 | Which action each reason earns (and the order) | `Policy.preferred[reason]` |
 | Whether to rank by economics | `Policy.rank_by = "expected_value"` |
-| How sure the model must be to act at all | `Policy.confidence_floor` |
+| The floor to act at all / the bar to auto-*act* | `Policy.confidence_floor` / `Policy.act_confidence` |
+| What the data should show per reason | `Policy.corroboration[reason]` |
+| How hard a contradiction bites | `Policy.contradiction_penalty` |
 | A stricter bar for expensive actions | `Scoring.min_confidence_by_type` |
 | The cost/value/effectiveness numbers | `Scoring.type_cost` / `save_prior` / `type_effectiveness` / `value_horizon_months` |
 | Which reasons a discount is legitimate for | `Policy.discount_reasons` |
@@ -158,13 +209,10 @@ Omit any of it and you inherit the suggested SaaS defaults. See
 
 ## 7. Roadmap — where the framework should go next
 
-Shipped: **EV scoring (#1)** and the **declared decision trace (#5)**, plus cost-tiered
-confidence thresholds. Still suggested, not yet built:
+Shipped: **EV scoring**, the **declared decision trace**, cost-tiered confidence
+thresholds, **behavioral corroboration**, and the **suggest/act tiers**. Still suggested,
+not yet built:
 
-- **Corroboration signal.** Check the model's `confidence` against the behavioral data it
-  was given (`never_activated` + `activated:true` = contradiction) and discount confidence
-  when the story and the data disagree. Declares a `corroborated` flag; guards the
-  confident-and-wrong case.
 - **`decline_to_spend` as a positive decision.** Today a `null` intervention can mean
   "below floor," "no match," or "EV ≤ 0." Separate *chose not to spend* (economics) from
   *nothing configured* (a config gap).

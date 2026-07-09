@@ -107,6 +107,21 @@ def _default_effectiveness() -> dict[str, float]:
     }
 
 
+def _default_corroboration() -> dict[str, str]:
+    """What the behavioral data SHOULD show if the diagnosis is true (same safe mini-language
+    as eligible_when). The safety net for when the model ignores the data and is confidently
+    wrong: a diagnosis the data contradicts gets its confidence penalized. Reasons with no
+    rule here are simply "unverified" -- no penalty, no boost."""
+    return {
+        "never_activated":      "activated == false",
+        "price_value_mismatch": "activated == true",   # a price complaint from a real user
+        "value_ended":          "logins < 3",           # a genuine usage cliff
+        "missing_capability":   "activated == true",    # a power user who hit a wall
+        "switched_competitor":  "activated == true",    # they used it, then left
+        "involuntary":          "logins > 5",           # still active -- didn't mean to cancel
+    }
+
+
 @dataclass
 class Scoring:
     """The SUGGESTED economics behind each decision. Every value is an opinionated default;
@@ -165,6 +180,15 @@ class Policy:
     # (the safe, suggested default). "expected_value" = maximize EV via `scoring` below.
     rank_by: str = "preferred"
     scoring: Scoring = field(default_factory=Scoring)
+    # Behavioral corroboration: per-reason expectation of what the data should show if the
+    # diagnosis holds. Contradiction subtracts `contradiction_penalty` from confidence.
+    corroboration: dict[str, str] = field(default_factory=_default_corroboration)
+    contradiction_penalty: float = 0.25
+    # Action tiers, read off the *effective* (post-corroboration) confidence:
+    #   below confidence_floor    -> defer   (authorize nothing; fall back)
+    #   floor .. act_confidence   -> suggest (recommend the action; the company/ops decides)
+    #   at/above act_confidence   -> act     (confident enough to auto-apply)
+    act_confidence: float = 0.85
 
 
 @dataclass
@@ -210,6 +234,10 @@ class ProductConfig:
                 raise ValueError(f"policy references unknown reason '{rid}'")
         if self.policy.rank_by not in ("preferred", "expected_value"):
             raise ValueError("policy.rank_by must be 'preferred' or 'expected_value'")
+        if not 0.0 <= self.policy.contradiction_penalty <= 1.0:
+            raise ValueError("policy.contradiction_penalty must be in [0, 1]")
+        if not self.policy.confidence_floor <= self.policy.act_confidence <= 1.0:
+            raise ValueError("policy.act_confidence must be in [confidence_floor, 1]")
         sc = self.policy.scoring
         if sc.value_horizon_months <= 0:
             raise ValueError("scoring.value_horizon_months must be positive")
@@ -251,3 +279,8 @@ class Outcome:
     # every option considered, its cost/EV, and why it won or was rejected.
     economics: Optional[dict] = None
     decision_trace: list = field(default_factory=list)
+    # How far policy is willing to go: "defer" (nothing), "suggest" (recommend the action),
+    # or "act" (confident enough to auto-apply). See Policy.act_confidence.
+    mode: str = "defer"
+    # Did the behavioral data back the diagnosis? {status, rule, raw/effective_confidence}.
+    corroboration: Optional[dict] = None
