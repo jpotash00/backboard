@@ -42,6 +42,11 @@ class CustomerRegistry:
     def get_by_key(self, public_key: str) -> Optional[Customer]:
         return self._by_key.get(public_key)
 
+    def get_by_id(self, customer_id: str) -> Optional[Customer]:
+        """Resolve a customer by internal id. The Redis session store needs this: a snapshot
+        carries only `customer_id`, and rehydrating it must re-attach that customer's config."""
+        return next((c for c in self._by_key.values() if c.id == customer_id), None)
+
 
 def default_registry() -> CustomerRegistry:
     """If OFFBOARD_CONFIG_DIR is set, load customers from stored JSON configs (the

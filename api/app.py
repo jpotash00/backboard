@@ -82,9 +82,21 @@ def create_app(
     now: Callable[[], float] = time.time,
 ) -> FastAPI:
     registry = registry or default_registry()
-    store = store or SessionStore(now=now)
-    logger = logger or TranscriptLogger()
     client_factory = client_factory or _lazy_anthropic_factory()
+    # Backend selection: a shared Redis store (multiple instances / zero-downtime deploys) when
+    # OFFBOARD_REDIS_URL is set, else the process-local store (single instance). Both satisfy
+    # the same create/get/save contract, so nothing downstream changes.
+    if store is None:
+        redis_url = os.getenv("OFFBOARD_REDIS_URL")
+        if redis_url:
+            from .store import redis_store_from_url
+            store = redis_store_from_url(redis_url, registry, client_factory)
+        else:
+            store = SessionStore(now=now)
+    # The data asset (transcripts / resolutions / outcomes) is append-only JSONL. On an
+    # ephemeral container filesystem it must live on a mounted volume or it's wiped every
+    # redeploy -- point OFFBOARD_RUNS_DIR at that volume. See docs/DEPLOY.md.
+    logger = logger or TranscriptLogger(directory=os.getenv("OFFBOARD_RUNS_DIR", "runs"))
     limiter = limiter or RateLimiter(now=now)
 
     app = FastAPI(title="Offboard Engine API", version="0.1.0")

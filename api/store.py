@@ -1,14 +1,19 @@
-"""Session state store. In-memory for Milestone 2; the interface is deliberately
-Redis-shaped (create/get/save) so swapping the backend later is a drop-in.
+"""Session state store. Two interchangeable backends behind one create/get/save interface:
 
-A live interview holds an `Interviewer` (which carries the model client and message
-history), so state is process-local for now. `SessionState.snapshot()` / `restore()` are the
-serialization seam a Redis backend needs: snapshot the transcript + messages + turn count,
-and reconstruct the Interviewer per request (config comes from the registry, the model
-client is injected). Sessions also carry a TTL so an in-memory store can't grow without
-bound -- an abandoned cancel flow is evicted rather than pinned in memory forever.
+  - `SessionStore`      -- process-local dict + TTL. Zero infra; single instance only.
+  - `RedisSessionStore` -- shared/durable via Redis. Any instance behind a load balancer can
+                           resume a session another started, and a redeploy doesn't drop
+                           in-flight interviews. Selected when OFFBOARD_REDIS_URL is set.
+
+A live interview holds an `Interviewer` (which carries the model client and message history),
+which is not itself serializable. `SessionState.snapshot()` / `restore()` are the seam that
+makes a shared backend possible: snapshot the transcript + messages + turn count, and
+reconstruct the Interviewer per request (config comes from the registry, the model client is
+injected). Sessions carry a TTL either way, so an abandoned cancel flow is evicted (in Redis,
+via key expiry) rather than pinned forever.
 """
 
+import json
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
@@ -119,3 +124,68 @@ class SessionStore:
         for sid in stale:
             self._sessions.pop(sid, None)
             self._seen.pop(sid, None)
+
+
+class RedisSessionStore:
+    """Shared, durable session store backed by Redis. Same create/get/save contract as
+    `SessionStore`, so `create_app` swaps one for the other with no other change.
+
+    Each session is stored as its JSON `snapshot()` under a TTL key; `get` rehydrates it via
+    `restore()`, re-attaching the customer's config (looked up by the snapshot's `customer_id`)
+    and a fresh model client. TTL is refreshed on read (sliding window), mirroring the
+    in-memory store's keep-active-sessions behavior. Because state lives in Redis, not process
+    memory, this is what unlocks multiple instances and zero-downtime deploys."""
+
+    def __init__(
+        self,
+        redis_client,
+        registry,
+        client_factory: Callable[[], object],
+        ttl_seconds: int = DEFAULT_TTL_SECONDS,
+        prefix: str = "offboard:session:",
+    ) -> None:
+        self._r = redis_client
+        self._registry = registry
+        self._client_factory = client_factory
+        self._ttl = ttl_seconds
+        self._prefix = prefix
+
+    def _key(self, session_id: str) -> str:
+        return f"{self._prefix}{session_id}"
+
+    def _persist(self, state: SessionState) -> None:
+        self._r.set(self._key(state.session_id), json.dumps(state.snapshot()), ex=self._ttl)
+
+    # create and save are identical against a shared backend: both write the current snapshot.
+    def create(self, state: SessionState) -> None:
+        self._persist(state)
+
+    def save(self, state: SessionState) -> None:
+        self._persist(state)
+
+    def get(self, session_id: str) -> Optional[SessionState]:
+        raw = self._r.get(self._key(session_id))
+        if raw is None:
+            return None  # unknown or expired -- Redis handles eviction via key TTL
+        data = json.loads(raw)
+        customer = self._registry.get_by_id(data.get("customer_id"))
+        if customer is None:
+            return None  # customer de-provisioned since the session started; treat as gone
+        state = restore(data, customer.config, self._client_factory())
+        self._r.expire(self._key(session_id), self._ttl)  # touch: slide the TTL forward
+        return state
+
+
+def redis_store_from_url(
+    url: str,
+    registry,
+    client_factory: Callable[[], object],
+    ttl_seconds: int = DEFAULT_TTL_SECONDS,
+) -> RedisSessionStore:
+    """Build a RedisSessionStore from a connection URL. `redis` is an optional dependency
+    (install `.[redis]`); imported here so the in-memory path needs nothing extra."""
+    import redis  # optional dependency, only needed for the shared backend
+
+    return RedisSessionStore(
+        redis.Redis.from_url(url), registry, client_factory, ttl_seconds=ttl_seconds
+    )

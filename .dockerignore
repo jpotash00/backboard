@@ -1,0 +1,30 @@
+# Keep the build context (and image) lean: only the Python packages the API needs.
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+build
+dist
+.pytest_cache
+.vscode
+.idea
+.DS_Store
+
+# Local secrets and data -- never bake into an image.
+.env
+runs
+scratch_runs
+
+# Node / SDK build artifacts and the demo -- shipped to npm separately, not in the API image.
+sdk/node_modules
+sdk/dist
+node_modules
+demo
+
+# Tests and the brief aren't needed at runtime.
+tests
+offboard-build-brief.md

@@ -457,6 +457,12 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 | `corroboration` | object | did the behavioral data back the diagnosis; the confidence it adjusted to |
 | `economics` / `decision_trace` | object / array | the declared, auditable decision record |
 
+> **Server-side only:** the engine's `Outcome` also carries `observations` — structured signals
+> the model extracted from the conversation (competitor named, price it would take, sentiment,
+> counterfactual-probe result). These are logged for the causal holdout readout but are
+> deliberately **not** returned to the browser and are **not** acted on by policy today (gated by
+> `Policy.use_observations`, off by default). They never appear in the client `Outcome` above.
+
 `onResolved`, `onAccept`, and `onCancel` all receive a **`ResolvedOutcome`** = the
 `Outcome` above plus a resolved `intervention` object (`{ id, type, description }`, or
 `null` when policy authorized nothing). The SDK presents the offer in-chat; `onAccept`
@@ -481,8 +487,14 @@ diagnosis.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | required to run the interviewer |
 | `OFFBOARD_CONFIG_DIR` | — | load customers from JSON configs; else demo `pk_demo_acme` |
+| `OFFBOARD_RUNS_DIR` | `runs` | where the append-only data asset is written — point at a mounted volume in prod |
+| `OFFBOARD_REDIS_URL` | — | set to use the shared/durable session store (multi-instance / zero-downtime); else in-memory |
+| `OFFBOARD_MODEL_TIMEOUT` | `30` | per-model-call timeout (seconds) |
 | `CHURN_MODEL` | `claude-sonnet-5` | the interviewer model |
 | `PORT` | `8000` | API port |
+
+Deploying for real (topologies, volumes, the `signing_secret` rule, TLS): see
+[DEPLOY.md](DEPLOY.md).
 
 ---
 
@@ -494,7 +506,14 @@ diagnosis.
 - **Config admin endpoint.** Onboarding currently means dropping a validated JSON file in
   `OFFBOARD_CONFIG_DIR`. A `POST /configs` (propose → validate → persist) would remove the
   need for file access.
-- **Session store durability.** Sessions are in-memory (the store interface is
-  Redis-shaped); a live interview holds the `Interviewer` object, so it's process-local
-  until the store is backed by Redis.
+- **Session store durability.** Both backends now exist: in-memory (default, single instance)
+  and a shared/durable Redis store selected via `OFFBOARD_REDIS_URL` (multi-instance,
+  zero-downtime deploys). See [DEPLOY.md](DEPLOY.md#session-state).
+- **Data-asset sink at scale.** The transcripts/resolutions/outcomes logs are file-based JSONL;
+  durable on a mounted volume for single-instance, but a shared object-store/DB sink is still a
+  follow-up for the multi-instance topology (the writer in `api/transcripts.py` is the seam).
+  See [DEPLOY.md](DEPLOY.md#the-data-asset).
+- **Observations not yet acted on.** The model's extracted `observations` are logged but gated
+  out of policy (`Policy.use_observations=False`) until the holdout shows which signals predict
+  lift — log-first, gate-later.
 ```

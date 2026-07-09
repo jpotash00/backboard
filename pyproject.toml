@@ -17,6 +17,11 @@ api = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
 ]
+# Shared/durable session backend for multi-instance deploys. Optional: without it the API
+# runs single-instance on the in-memory store. See docs/DEPLOY.md.
+redis = [
+    "redis>=5.0.0",
+]
 dev = [
     "pytest>=8.0.0",
     "fastapi>=0.110.0",

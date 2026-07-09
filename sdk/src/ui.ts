@@ -8,9 +8,13 @@
  *   #1 The conversation is bounded — the engine stops at MAX_TURNS; the UI just
  *      renders whatever the server returns and closes on `done`.
  *
- * Design intent: a calm, respectful surface. Someone is leaving — nothing here
- * should feel like a trap. Apple-grade restraint: layered material, a single
- * accent, spring motion, honest typography, and an exit that stays dignified.
+ * Design intent: a modern AI-chat surface in the Claude / ChatGPT idiom — neutral
+ * monochrome palette, a single restrained accent, full-width assistant turns with an
+ * avatar, and an auto-growing composer with the send control inside the field. It's
+ * a drop-in widget, so it can't require React/Tailwind on the host: instead it adopts
+ * shadcn/ui's *design language* (its neutral token system, `--radius`, ring-focus,
+ * "new-york" restraint) in scoped CSS. Someone is leaving — nothing should feel like
+ * a trap; the exit stays dignified and one tap away.
  */
 
 import { OffboardApiError, SessionClient } from "./client.js";
@@ -20,165 +24,183 @@ const STYLE_ID = "offboard-styles";
 
 /**
  * All styles are scoped under `.offboard-overlay` and driven by CSS variables so
- * light/dark are one source of truth. The design tokens mirror Apple's system
- * palette (systemGray6 surfaces, SF label inks, the system blue accent).
+ * light/dark are one source of truth. Tokens are shadcn/ui's neutral (zinc) scale in
+ * HSL — `--ob-bg/-fg/-muted/-border/-ring/-primary` map 1:1 to shadcn's
+ * `--background/-foreground/-muted/-border/-ring/-primary`. `--ob-accent` defaults to
+ * the monochrome primary (the ChatGPT look); a host can point it at one brand colour
+ * (e.g. Claude's clay `15 63% 59%`) and every CTA + the send button follow.
  */
 const CSS = `
 .offboard-overlay,.offboard-overlay *{ box-sizing:border-box }
 .offboard-overlay{
-  --ob-ink:#1d1d1f; --ob-ink-dim:#86868b; --ob-surface:#ffffff;
-  --ob-surface-2:#f2f2f7; --ob-hairline:rgba(0,0,0,.08);
-  --ob-accent:#0071e3; --ob-accent-strong:#0064cf; --ob-on-accent:#ffffff;
-  --ob-good:#1a8a4a; --ob-good-soft:rgba(26,138,74,.10);
-  --ob-shadow:0 12px 28px rgba(0,0,0,.12), 0 40px 80px rgba(0,0,0,.24);
+  --ob-bg:0 0% 100%; --ob-fg:240 10% 3.9%;
+  --ob-muted:240 4.8% 95.9%; --ob-muted-fg:240 3.8% 46.1%;
+  --ob-border:240 5.9% 90%; --ob-ring:240 5% 34%;
+  --ob-primary:240 5.9% 10%; --ob-primary-fg:0 0% 98%;
+  --ob-accent:var(--ob-primary); --ob-accent-fg:var(--ob-primary-fg);
+  --ob-good:142 71% 35%; --ob-good-soft:142 71% 35%;
+  --ob-radius:.65rem;
+  --ob-shadow:0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.08),
+    0 40px 80px -20px rgba(0,0,0,.22);
   --ob-ease:cubic-bezier(.32,.72,0,1);
   position:fixed; inset:0; z-index:2147483647;
-  display:flex; align-items:flex-end; justify-content:center;
-  padding:0; background:rgba(0,0,0,.30);
-  -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
-  opacity:0; animation:ob-fade .32s var(--ob-ease) forwards;
-  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  display:flex; align-items:stretch; justify-content:center;
+  padding:0; background:hsl(240 10% 3.9% / .32);
+  -webkit-backdrop-filter:blur(8px) saturate(120%); backdrop-filter:blur(8px) saturate(120%);
+  opacity:0; animation:ob-fade .28s var(--ob-ease) forwards;
+  font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,
+    "Helvetica Neue",Arial,sans-serif;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
 @media (prefers-color-scheme: dark){
   .offboard-overlay{
-    --ob-ink:#f5f5f7; --ob-ink-dim:#98989d; --ob-surface:#1c1c1e;
-    --ob-surface-2:#2c2c2e; --ob-hairline:rgba(255,255,255,.10);
-    --ob-accent:#0a84ff; --ob-accent-strong:#0a84ff; --ob-on-accent:#ffffff;
-    --ob-good:#30d158; --ob-good-soft:rgba(48,209,88,.14);
-    --ob-shadow:0 12px 28px rgba(0,0,0,.44), 0 40px 90px rgba(0,0,0,.60);
-    background:rgba(0,0,0,.48);
+    --ob-bg:240 10% 6%; --ob-fg:0 0% 98%;
+    --ob-muted:240 3.7% 15.9%; --ob-muted-fg:240 5% 64.9%;
+    --ob-border:240 3.7% 18%; --ob-ring:240 4.9% 64%;
+    --ob-primary:0 0% 98%; --ob-primary-fg:240 5.9% 10%;
+    --ob-good:142 69% 58%; --ob-good-soft:142 69% 58%;
+    --ob-shadow:0 10px 15px -3px rgba(0,0,0,.5), 0 40px 80px -20px rgba(0,0,0,.6);
+    background:hsl(0 0% 0% / .55);
   }
 }
+/* Phone: a full-screen conversation (100dvh dodges the iOS URL-bar jump), composer
+   pinned above the keyboard. Tablet/desktop: a centered, roomy card. */
 @media (min-width:640px){ .offboard-overlay{ align-items:center; padding:24px } }
 
 .offboard-modal{
   position:relative; display:flex; flex-direction:column;
-  width:100%; max-width:420px; max-height:min(88vh,720px);
-  background:var(--ob-surface); color:var(--ob-ink);
-  border-radius:28px 28px 0 0; box-shadow:var(--ob-shadow); overflow:hidden;
-  transform:translateY(24px); opacity:0;
-  animation:ob-rise .5s var(--ob-ease) .02s forwards;
+  width:100%; height:100dvh; max-width:none;
+  background:hsl(var(--ob-bg)); color:hsl(var(--ob-fg));
+  border-radius:0; box-shadow:var(--ob-shadow); overflow:hidden;
+  transform:translateY(10px); opacity:0;
+  animation:ob-rise .42s var(--ob-ease) .02s forwards;
 }
 @media (min-width:640px){
-  .offboard-modal{ border-radius:24px; transform:translateY(10px) scale(.98) }
+  .offboard-modal{
+    height:auto; max-width:480px; max-height:min(86vh,760px);
+    border:1px solid hsl(var(--ob-border));
+    border-radius:calc(var(--ob-radius) + 10px);
+    transform:translateY(8px) scale(.985);
+  }
 }
 
-/* Grabber — the affordance that says "this is a sheet you own". */
-.offboard-grabber{ display:flex; justify-content:center; padding:10px 0 2px; flex:0 0 auto }
-.offboard-grabber::before{ content:""; width:36px; height:5px; border-radius:3px;
-  background:var(--ob-ink); opacity:.16 }
-@media (min-width:640px){ .offboard-grabber{ display:none } }
-
 /* Header — a quiet identity so the conversation feels attended, not automated. */
-.offboard-head{ display:flex; align-items:center; gap:12px; padding:14px 20px 12px; flex:0 0 auto }
-.offboard-orb{ width:34px; height:34px; border-radius:50%; flex:0 0 auto; position:relative;
-  background:radial-gradient(120% 120% at 30% 20%, #7db8ff 0%, var(--ob-accent) 46%, #7a5cff 100%);
-  box-shadow:0 2px 8px rgba(0,113,227,.30) }
-.offboard-orb::after{ content:""; position:absolute; inset:0; border-radius:50%;
-  box-shadow:inset 0 1px 1px rgba(255,255,255,.5) }
-.offboard-head-text{ display:flex; flex-direction:column; min-width:0; gap:1px }
-.offboard-title{ font-size:15px; font-weight:600; letter-spacing:-.01em; line-height:1.2 }
-.offboard-status{ font-size:12.5px; color:var(--ob-ink-dim); line-height:1.3; height:16px;
+.offboard-head{ display:flex; align-items:center; gap:11px; flex:0 0 auto;
+  padding:14px 18px; border-bottom:1px solid hsl(var(--ob-border));
+  padding-top:calc(14px + env(safe-area-inset-top,0px)) }
+@media (min-width:640px){ .offboard-head{ padding-top:14px } }
+.offboard-avatar{ width:30px; height:30px; border-radius:9px; flex:0 0 auto;
+  display:grid; place-items:center; background:hsl(var(--ob-primary));
+  color:hsl(var(--ob-primary-fg)) }
+.offboard-avatar svg{ width:17px; height:17px }
+.offboard-head-text{ display:flex; flex-direction:column; min-width:0; gap:2px }
+.offboard-title{ font-size:14.5px; font-weight:600; letter-spacing:-.01em; line-height:1.1 }
+.offboard-status{ font-size:12px; color:hsl(var(--ob-muted-fg)); line-height:1.2; height:14px;
   display:flex; align-items:center; gap:6px }
-.offboard-status .dot{ width:6px; height:6px; border-radius:50%; background:var(--ob-good);
-  box-shadow:0 0 0 0 var(--ob-good-soft); animation:ob-pulse 2.4s ease-in-out infinite }
+.offboard-status .dot{ width:6px; height:6px; border-radius:50%; background:hsl(var(--ob-good));
+  box-shadow:0 0 0 0 hsl(var(--ob-good) / .35); animation:ob-pulse 2.4s ease-in-out infinite }
 
 /* Message log */
 .offboard-log{ flex:1 1 auto; min-width:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
-  display:flex; flex-direction:column; gap:8px; padding:8px 20px 4px;
-  scrollbar-width:thin; scrollbar-color:var(--ob-hairline) transparent }
+  display:flex; flex-direction:column; gap:18px; padding:22px 18px 8px;
+  scrollbar-width:thin; scrollbar-color:hsl(var(--ob-border)) transparent }
 .offboard-log::-webkit-scrollbar{ width:8px }
-.offboard-log::-webkit-scrollbar-thumb{ background:var(--ob-hairline); border-radius:8px }
+.offboard-log::-webkit-scrollbar-thumb{ background:hsl(var(--ob-border)); border-radius:8px }
 
-.offboard-msg{ max-width:82%; padding:10px 14px; font-size:15px; line-height:1.45;
-  letter-spacing:-.006em; border-radius:20px; word-wrap:break-word;
-  animation:ob-pop .42s var(--ob-ease) both }
-.offboard-msg.bot{ align-self:flex-start; background:var(--ob-surface-2); color:var(--ob-ink);
-  border-bottom-left-radius:7px }
-.offboard-msg.user{ align-self:flex-end; color:var(--ob-on-accent); border-bottom-right-radius:7px;
-  background:linear-gradient(180deg,var(--ob-accent) 0%,var(--ob-accent-strong) 100%);
-  box-shadow:0 1px 2px rgba(0,113,227,.28) }
+/* A turn = optional avatar + content. Assistant is full-width, borderless (Claude/
+   ChatGPT). The user gets a subtle muted bubble on the right. */
+.offboard-row{ display:flex; gap:11px; align-items:flex-start; max-width:100%;
+  animation:ob-pop .38s var(--ob-ease) both }
+.offboard-row.user{ justify-content:flex-end }
+.offboard-row-avatar{ width:26px; height:26px; border-radius:8px; flex:0 0 auto; margin-top:1px;
+  display:grid; place-items:center; background:hsl(var(--ob-muted)); color:hsl(var(--ob-fg)) }
+.offboard-row-avatar svg{ width:15px; height:15px }
+.offboard-bubble{ font-size:15px; line-height:1.6; letter-spacing:-.006em; word-wrap:break-word;
+  white-space:pre-wrap }
+.offboard-bubble.bot{ color:hsl(var(--ob-fg)); padding-top:2px; max-width:calc(100% - 37px) }
+.offboard-bubble.user{ max-width:84%; padding:9px 14px; border-radius:18px;
+  background:hsl(var(--ob-muted)); color:hsl(var(--ob-fg)) }
 
-/* Typing indicator — three-dot bubble while the engine thinks. */
-.offboard-typing{ align-self:flex-start; display:flex; gap:5px; align-items:center;
-  padding:13px 16px; background:var(--ob-surface-2); border-radius:20px;
-  border-bottom-left-radius:7px; animation:ob-pop .3s var(--ob-ease) both }
-.offboard-typing span{ width:7px; height:7px; border-radius:50%; background:var(--ob-ink);
-  opacity:.28; animation:ob-blink 1.3s ease-in-out infinite }
+/* Typing indicator — three dots in an assistant row while the engine thinks. */
+.offboard-typing{ display:flex; gap:5px; align-items:center; padding:6px 0 }
+.offboard-typing span{ width:7px; height:7px; border-radius:50%; background:hsl(var(--ob-muted-fg));
+  opacity:.5; animation:ob-blink 1.3s ease-in-out infinite }
 .offboard-typing span:nth-child(2){ animation-delay:.18s }
 .offboard-typing span:nth-child(3){ animation-delay:.36s }
 
-/* Composer — a pill field with a circular send, iMessage-grade. */
-.offboard-foot{ flex:0 0 auto; padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));
-  border-top:1px solid var(--ob-hairline); background:var(--ob-surface) }
-.offboard-input-row{ display:flex; align-items:flex-end; gap:8px }
-.offboard-input{ flex:1; min-height:42px; border:1px solid var(--ob-hairline);
-  background:var(--ob-surface-2); color:var(--ob-ink); border-radius:21px;
-  padding:10px 16px; font:inherit; font-size:15px; line-height:1.35; outline:none;
-  transition:border-color .18s ease, box-shadow .18s ease }
-.offboard-input::placeholder{ color:var(--ob-ink-dim) }
-.offboard-input:focus{ border-color:var(--ob-accent);
-  box-shadow:0 0 0 4px color-mix(in srgb,var(--ob-accent) 16%,transparent) }
-.offboard-send{ flex:0 0 auto; width:42px; height:42px; border:0; border-radius:50%; cursor:pointer;
-  background:var(--ob-accent); color:var(--ob-on-accent); display:grid; place-items:center;
-  transition:transform .16s var(--ob-ease), opacity .16s ease, background .16s ease }
-.offboard-send svg{ width:20px; height:20px }
-.offboard-send:not(:disabled):hover{ background:var(--ob-accent-strong) }
-.offboard-send:not(:disabled):active{ transform:scale(.90) }
-.offboard-send:disabled{ opacity:.35; cursor:default }
+/* Composer — an auto-growing textarea with the send control inside the field, the way
+   Claude and ChatGPT do it. The whole box lights a ring on focus. */
+.offboard-foot{ flex:0 0 auto; padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px));
+  background:hsl(var(--ob-bg)) }
+.offboard-composer{ display:flex; align-items:flex-end; gap:8px;
+  border:1px solid hsl(var(--ob-border)); background:hsl(var(--ob-bg));
+  border-radius:calc(var(--ob-radius) + 10px); padding:7px 7px 7px 15px;
+  transition:border-color .16s ease, box-shadow .16s ease }
+.offboard-composer:focus-within{ border-color:hsl(var(--ob-ring));
+  box-shadow:0 0 0 3px hsl(var(--ob-ring) / .16) }
+.offboard-input{ flex:1 1 auto; min-width:0; border:0; background:transparent; resize:none;
+  outline:none; color:hsl(var(--ob-fg)); font:inherit; font-size:15px; line-height:1.5;
+  max-height:140px; padding:7px 0 }
+.offboard-input::placeholder{ color:hsl(var(--ob-muted-fg)) }
+.offboard-send{ flex:0 0 auto; width:34px; height:34px; border:0; cursor:pointer;
+  border-radius:calc(var(--ob-radius) + 1px); background:hsl(var(--ob-accent));
+  color:hsl(var(--ob-accent-fg)); display:grid; place-items:center;
+  transition:transform .16s var(--ob-ease), opacity .16s ease, filter .16s ease }
+.offboard-send svg{ width:18px; height:18px }
+.offboard-send:not(:disabled):hover{ filter:brightness(1.08) }
+.offboard-send:not(:disabled):active{ transform:scale(.92) }
+.offboard-send:disabled{ opacity:.3; cursor:default }
 
 /* The escape hatch — hard constraint #3. Understated, never buried, always one tap. */
-.offboard-escape{ display:block; width:100%; margin-top:6px; padding:9px; border:0;
-  background:transparent; color:var(--ob-ink-dim); font:inherit; font-size:13px; cursor:pointer;
-  border-radius:10px; transition:color .16s ease, background .16s ease }
-.offboard-escape:hover{ color:var(--ob-ink); background:var(--ob-surface-2) }
+.offboard-escape{ display:block; margin:8px auto 0; padding:6px 10px; border:0;
+  background:transparent; color:hsl(var(--ob-muted-fg)); font:inherit; font-size:13px;
+  cursor:pointer; border-radius:8px; transition:color .16s ease, background .16s ease }
+.offboard-escape:hover{ color:hsl(var(--ob-fg)); background:hsl(var(--ob-muted)) }
 
 /* In-chat offer card — the personalized "one reason to stay", presented calmly. */
-.offboard-offer{ align-self:stretch; max-width:100%; margin:6px 0 2px; border-radius:20px;
-  border:1px solid var(--ob-hairline); background:var(--ob-surface);
-  box-shadow:0 8px 22px rgba(0,0,0,.08); overflow:hidden;
-  animation:ob-pop .5s var(--ob-ease) both }
-@media (prefers-color-scheme: dark){ .offboard-offer{ background:var(--ob-surface-2) } }
-.offboard-offer-top{ padding:16px 18px 14px;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--ob-accent) 8%,transparent),transparent) }
-.offboard-offer-eyebrow{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600;
-  letter-spacing:.02em; text-transform:uppercase; color:var(--ob-accent) }
+.offboard-offer{ align-self:stretch; max-width:100%; margin:2px 0; border-radius:calc(var(--ob-radius) + 4px);
+  border:1px solid hsl(var(--ob-border)); background:hsl(var(--ob-bg));
+  box-shadow:0 1px 2px rgba(0,0,0,.04); overflow:hidden;
+  animation:ob-pop .44s var(--ob-ease) both }
+.offboard-offer-top{ padding:16px 18px 14px }
+.offboard-offer-eyebrow{ display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600;
+  letter-spacing:.04em; text-transform:uppercase; color:hsl(var(--ob-muted-fg)) }
 .offboard-offer-eyebrow svg{ width:14px; height:14px }
-.offboard-offer-headline{ margin-top:8px; font-size:19px; font-weight:600; letter-spacing:-.02em;
-  line-height:1.28; color:var(--ob-ink) }
-.offboard-offer-sub{ margin-top:6px; font-size:13.5px; line-height:1.5; color:var(--ob-ink-dim) }
-.offboard-offer-actions{ display:flex; flex-direction:column; gap:8px; padding:4px 14px 14px }
-.offboard-btn{ width:100%; padding:13px 16px; border-radius:14px; font:inherit; font-size:15px;
-  font-weight:600; letter-spacing:-.01em; cursor:pointer; border:1px solid transparent;
-  transition:transform .16s var(--ob-ease), background .16s ease, opacity .16s ease }
-.offboard-btn:active{ transform:scale(.98) }
-.offboard-btn-primary{ background:var(--ob-accent); color:var(--ob-on-accent);
-  box-shadow:0 4px 14px rgba(0,113,227,.30) }
-.offboard-btn-primary:hover{ background:var(--ob-accent-strong) }
-.offboard-btn-ghost{ background:transparent; color:var(--ob-ink-dim); border-color:var(--ob-hairline) }
-.offboard-btn-ghost:hover{ color:var(--ob-ink); background:var(--ob-surface-2) }
+.offboard-offer-headline{ margin-top:9px; font-size:18px; font-weight:600; letter-spacing:-.02em;
+  line-height:1.3; color:hsl(var(--ob-fg)) }
+.offboard-offer-sub{ margin-top:6px; font-size:13.5px; line-height:1.55; color:hsl(var(--ob-muted-fg)) }
+.offboard-offer-actions{ display:flex; flex-direction:column; gap:8px; padding:2px 14px 14px }
+.offboard-btn{ width:100%; padding:11px 16px; border-radius:var(--ob-radius); font:inherit;
+  font-size:14.5px; font-weight:600; letter-spacing:-.01em; cursor:pointer;
+  border:1px solid transparent;
+  transition:transform .16s var(--ob-ease), background .16s ease, filter .16s ease, opacity .16s ease }
+.offboard-btn:active{ transform:scale(.985) }
+.offboard-btn-primary{ background:hsl(var(--ob-accent)); color:hsl(var(--ob-accent-fg)) }
+.offboard-btn-primary:hover{ filter:brightness(1.08) }
+.offboard-btn-ghost{ background:transparent; color:hsl(var(--ob-fg)); border-color:hsl(var(--ob-border)) }
+.offboard-btn-ghost:hover{ background:hsl(var(--ob-muted)) }
 
 /* Terminal confirmation — a graceful close, whether they stayed or left. */
 .offboard-final{ align-self:stretch; max-width:100%; text-align:center; margin:auto 0;
-  padding:40px 20px 44px; animation:ob-pop .45s var(--ob-ease) both }
-.offboard-final-badge{ width:56px; height:56px; margin:0 auto 14px; border-radius:50%;
-  display:grid; place-items:center; background:var(--ob-good-soft); color:var(--ob-good) }
-.offboard-final-badge svg{ width:28px; height:28px }
-.offboard-final-badge.neutral{ background:var(--ob-surface-2); color:var(--ob-ink-dim) }
-.offboard-final-title{ font-size:18px; font-weight:600; letter-spacing:-.015em; color:var(--ob-ink) }
-.offboard-final-sub{ margin-top:6px; font-size:14px; line-height:1.5; color:var(--ob-ink-dim) }
+  padding:44px 24px; animation:ob-pop .42s var(--ob-ease) both }
+.offboard-final-badge{ width:52px; height:52px; margin:0 auto 16px; border-radius:50%;
+  display:grid; place-items:center; background:hsl(var(--ob-good) / .12); color:hsl(var(--ob-good)) }
+.offboard-final-badge svg{ width:26px; height:26px }
+.offboard-final-badge.neutral{ background:hsl(var(--ob-muted)); color:hsl(var(--ob-muted-fg)) }
+.offboard-final-title{ font-size:17px; font-weight:600; letter-spacing:-.015em; color:hsl(var(--ob-fg)) }
+.offboard-final-sub{ margin-top:7px; font-size:14px; line-height:1.55; color:hsl(var(--ob-muted-fg));
+  max-width:34ch; margin-left:auto; margin-right:auto }
 
 @keyframes ob-fade{ to{ opacity:1 } }
 @keyframes ob-rise{ to{ transform:none; opacity:1 } }
-@keyframes ob-pop{ from{ opacity:0; transform:translateY(8px) scale(.98) } to{ opacity:1; transform:none } }
-@keyframes ob-blink{ 0%,60%,100%{ opacity:.28; transform:translateY(0) }
-  30%{ opacity:.85; transform:translateY(-2px) } }
-@keyframes ob-pulse{ 0%,100%{ box-shadow:0 0 0 0 var(--ob-good-soft) }
+@keyframes ob-pop{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
+@keyframes ob-blink{ 0%,60%,100%{ opacity:.5; transform:translateY(0) }
+  30%{ opacity:1; transform:translateY(-2px) } }
+@keyframes ob-pulse{ 0%,100%{ box-shadow:0 0 0 0 hsl(var(--ob-good) / .35) }
   50%{ box-shadow:0 0 0 5px transparent } }
 
 @media (prefers-reduced-motion: reduce){
-  .offboard-overlay,.offboard-modal,.offboard-msg,.offboard-typing,.offboard-offer,
+  .offboard-overlay,.offboard-modal,.offboard-row,.offboard-offer,
   .offboard-final{ animation-duration:.001s }
   .offboard-typing span,.offboard-status .dot{ animation:none }
 }
@@ -225,7 +247,7 @@ export class CancelFlowModal {
   private readonly overlay: HTMLDivElement;
   private readonly log: HTMLDivElement;
   private readonly foot: HTMLDivElement;
-  private readonly input: HTMLInputElement;
+  private readonly input: HTMLTextAreaElement;
   private readonly send: HTMLButtonElement;
   private readonly status: HTMLDivElement;
   private typingEl: HTMLDivElement | null = null;
@@ -244,33 +266,34 @@ export class CancelFlowModal {
     this.overlay.setAttribute("aria-label", "Cancel subscription");
 
     const modal = el("div", "offboard-modal");
-    modal.append(el("div", "offboard-grabber"));
 
     // Header identity — a quiet signal that a person (not a wall) is listening.
     const head = el("div", "offboard-head");
+    const avatar = el("div", "offboard-avatar");
+    avatar.innerHTML = SPARK_ICON;
     const headText = el("div", "offboard-head-text");
     const title = el("div", "offboard-title");
     title.textContent = "Before you go";
     this.status = el("div", "offboard-status");
     headText.append(title, this.status);
-    head.append(el("div", "offboard-orb"), headText);
+    head.append(avatar, headText);
 
     this.log = el("div", "offboard-log");
 
-    // Composer.
+    // Composer — an auto-growing textarea with the send control inside the field.
     this.foot = el("div", "offboard-foot");
-    const inputRow = el("div", "offboard-input-row");
-    this.input = el("input", "offboard-input");
-    this.input.type = "text";
+    const composer = el("div", "offboard-composer");
+    this.input = el("textarea", "offboard-input");
+    this.input.rows = 1;
     this.input.placeholder = "Type your reply…";
-    this.input.autocomplete = "off";
+    this.input.setAttribute("autocomplete", "off");
     this.input.setAttribute("aria-label", "Your reply");
     this.send = el("button", "offboard-send");
     this.send.type = "button";
     this.send.innerHTML = SEND_ICON;
     this.send.setAttribute("aria-label", "Send");
     this.send.disabled = true;
-    inputRow.append(this.input, this.send);
+    composer.append(this.input, this.send);
 
     // Hard constraint #3: the escape hatch is always here, one tap away.
     const escape = el("button", "offboard-escape");
@@ -278,18 +301,36 @@ export class CancelFlowModal {
     escape.textContent = this.opts.justCancelLabel ?? "Just cancel my subscription";
     escape.addEventListener("click", () => this.leaveNow(null));
 
-    this.foot.append(inputRow, escape);
+    this.foot.append(composer, escape);
     modal.append(head, this.log, this.foot);
     this.overlay.append(modal);
 
     this.send.addEventListener("click", () => void this.submit());
-    this.input.addEventListener("input", () => this.syncSend());
+    this.input.addEventListener("input", () => {
+      this.syncSend();
+      this.autoGrow();
+    });
+    // Enter sends; Shift+Enter (and Enter on touch keyboards) inserts a newline.
     this.input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey && !this.isCoarsePointer()) {
         e.preventDefault();
         void this.submit();
       }
     });
+  }
+
+  /** Grow the textarea to fit its content, up to the CSS max-height then scroll. */
+  private autoGrow(): void {
+    this.input.style.height = "auto";
+    this.input.style.height = `${this.input.scrollHeight}px`;
+  }
+
+  /** On phones the on-screen keyboard's Enter should add a line, not send — the send
+   * button is the deliberate action there, matching Claude/ChatGPT mobile. */
+  private isCoarsePointer(): boolean {
+    return typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches;
   }
 
   async open(): Promise<void> {
@@ -314,6 +355,7 @@ export class CancelFlowModal {
     if (!text || !this.sessionId || this.closed) return;
     this.appendUser(text);
     this.input.value = "";
+    this.input.style.height = "auto";
     this.syncSend();
     this.setBusy(true);
     this.showTyping();
@@ -477,11 +519,15 @@ export class CancelFlowModal {
 
   private showTyping(): void {
     if (this.typingEl) return;
-    const t = el("div", "offboard-typing");
-    t.setAttribute("aria-label", "Assistant is typing");
-    t.innerHTML = "<span></span><span></span><span></span>";
-    this.log.appendChild(t);
-    this.typingEl = t;
+    // The three dots live inside an assistant row, so they sit exactly where the
+    // reply will render — the avatar stays put and the text simply resolves in.
+    const row = this.assistantRow();
+    const dots = el("div", "offboard-typing");
+    dots.setAttribute("aria-label", "Assistant is typing");
+    dots.innerHTML = "<span></span><span></span><span></span>";
+    row.appendChild(dots);
+    this.log.appendChild(row);
+    this.typingEl = row;
     this.setStatus("typing…", true);
     this.scrollToEnd();
   }
@@ -492,21 +538,36 @@ export class CancelFlowModal {
   }
 
   private appendBot(text: string): void {
-    this.appendMsg(text, "bot");
+    const row = this.assistantRow();
+    const bubble = el("div", "offboard-bubble bot");
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    this.placeRow(row, "bot");
   }
 
   private appendUser(text: string): void {
-    this.appendMsg(text, "user");
+    const row = el("div", "offboard-row user");
+    const bubble = el("div", "offboard-bubble user");
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    this.placeRow(row, "user");
   }
 
-  private appendMsg(text: string, who: "bot" | "user"): void {
-    const node = el("div", `offboard-msg ${who}`);
-    node.textContent = text;
-    // Keep the typing bubble last if it's live.
+  /** An assistant turn: the avatar (its identity) followed by content. */
+  private assistantRow(): HTMLDivElement {
+    const row = el("div", "offboard-row bot");
+    const avatar = el("div", "offboard-row-avatar");
+    avatar.innerHTML = SPARK_ICON;
+    row.appendChild(avatar);
+    return row;
+  }
+
+  private placeRow(row: HTMLDivElement, who: "bot" | "user"): void {
+    // Keep the live typing row last so the user's message slots in above it.
     if (this.typingEl && who === "user") {
-      this.log.insertBefore(node, this.typingEl);
+      this.log.insertBefore(row, this.typingEl);
     } else {
-      this.log.appendChild(node);
+      this.log.appendChild(row);
     }
     this.scrollToEnd();
   }
