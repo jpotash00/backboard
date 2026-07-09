@@ -1,0 +1,18 @@
+{
+  "customer_id": "acme",
+  "public_key": "pk_live_acme_change_me",
+  "allowed_origins": ["https://app.acme.com"],
+  "product": {
+    "product_name": "Acme Analytics",
+    "product_context": "Self-serve product analytics for SaaS teams; dashboards, funnels, and event tracking.",
+    "activation_definition": "connected a data source and built at least one dashboard",
+    "pricing_summary": "Starter $49/mo, Growth $199/mo (event caps per tier), Scale custom"
+  },
+  "offers": [
+    { "type": "discount", "description": "50% off for 3 months" },
+    { "type": "pause", "description": "Pause billing for up to 3 months" },
+    { "type": "downgrade", "description": "Move to the Starter plan" },
+    { "type": "onboarding", "description": "Free 30-minute setup call with our team" }
+  ],
+  "competitors": ["Mixpanel", "Amplitude"]
+}

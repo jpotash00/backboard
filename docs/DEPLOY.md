@@ -178,22 +178,33 @@ npm SDK** that calls it. Do them in this order; the SDK is inert until the API i
 - An npm account, and the package name (`offboard`, or `@your-org/offboard` if taken).
 
 ### 1. Provision the customer on disk
-One JSON file per customer in your config dir (schema in `api/config_store.py`; template in
-`configs/acme.json`):
+Write a **tiny spec** — only the four product facts + the authorized offer menu; taxonomy,
+policy, and economics all come from validated defaults (template: `docs/customer-spec.example.json`):
 
 ```jsonc
 {
   "customer_id": "acme",
-  "public_key": "pk_live_acme_9f3k…",     // public; ships in their browser
-  "signing_secret": "…64 hex chars…",      // REQUIRED in prod: openssl rand -hex 32
+  "public_key": "pk_live_acme_9f3k…",           // public; ships in their browser
   "allowed_origins": ["https://app.acme.com"],
-  "config": { /* ProductConfig: taxonomy, offer menu, policy */ }
+  "product": { "product_name": "…", "product_context": "…",
+               "activation_definition": "…", "pricing_summary": "…" },
+  "offers": [ { "type": "discount", "description": "50% off for 3 months" },
+              { "type": "pause",    "description": "Pause billing up to 3 months" } ]
 }
 ```
 
-Generate the secret with `openssl rand -hex 32`. The `config` block can come from the
-`onboarding/` proposer or be hand-authored from `configs/acme.json`. Keep these files private:
-they carry the signing secret.
+Then run the provisioner — it **mints the `signing_secret`** (so you can't ship a
+trust-the-browser tenant), validates the config, and writes `<customer_id>.json` into the dir:
+
+```bash
+python -m onboarding.provision acme.spec.json --out /path/to/OFFBOARD_CONFIG_DIR
+# prints the signing_secret ONCE — store it; the customer's backend signs identity tokens with it
+```
+
+The offer menu is declared, not inferred. For messy free-text pricing, draft a config with the
+`onboarding/` proposer first, review it, then list the offers in the spec. Keep these files
+private — they carry the signing secret — and never overwrite one in place (that rotates the
+secret; the provisioner refuses to clobber for exactly this reason).
 
 ### 2. Deploy the engine API
 Any container host works (the image is standard). Fly.io, concretely:
