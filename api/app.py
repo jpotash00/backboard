@@ -99,7 +99,15 @@ def create_app(
     logger = logger or TranscriptLogger(directory=os.getenv("OFFBOARD_RUNS_DIR", "runs"))
     limiter = limiter or RateLimiter(now=now)
 
-    app = FastAPI(title="Offboard Engine API", version="0.1.0")
+    # `root_path` tells FastAPI it's served under a path prefix by an upstream proxy (e.g. an
+    # ingress mapping `/v1/* -> /*`), so generated docs/OpenAPI URLs stay correct. Empty by
+    # default: the app serves at the root and the SDK's base URL carries no version prefix. If
+    # you expose it under `/v1`, set OFFBOARD_ROOT_PATH=/v1 here and include `/v1` in the SDK URL.
+    app = FastAPI(
+        title="Offboard Engine API",
+        version="0.1.0",
+        root_path=os.getenv("OFFBOARD_ROOT_PATH", ""),
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins or ["*"],

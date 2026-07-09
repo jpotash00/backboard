@@ -16,7 +16,23 @@ import { SessionClient } from "./client.js";
 import { CancelFlowModal } from "./ui.js";
 import type { InitOptions, ShowCancelFlowOptions } from "./types.js";
 
-const DEFAULT_API_BASE_URL = "https://api.offboard.dev/v1";
+/**
+ * The engine URL an unconfigured install talks to. Precedence, highest first:
+ *   1. `apiBaseUrl` passed to `init()` — per-app, e.g. staging vs prod.
+ *   2. `globalThis.__OFFBOARD_API_BASE_URL__` — a host can set this (a bundler define, or a
+ *      `<script>window.__OFFBOARD_API_BASE_URL__="…"</script>` before init) to flip
+ *      environments without editing call sites.
+ *   3. This baked-in default — point it at YOUR hosted engine before publishing to npm.
+ * No `/v1` suffix: the engine serves routes at the root. If you host it under a version
+ * prefix, include that here AND set the API's `OFFBOARD_ROOT_PATH` to match.
+ */
+const DEFAULT_API_BASE_URL = "https://api.offboard.dev";
+
+function resolveBaseUrl(explicit?: string): string {
+  if (explicit) return explicit;
+  const injected = (globalThis as Record<string, unknown>).__OFFBOARD_API_BASE_URL__;
+  return typeof injected === "string" && injected ? injected : DEFAULT_API_BASE_URL;
+}
 
 let config: Required<InitOptions> | null = null;
 
@@ -28,7 +44,7 @@ export const Offboard = {
     }
     config = {
       publicKey: options.publicKey,
-      apiBaseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+      apiBaseUrl: resolveBaseUrl(options.apiBaseUrl),
     };
   },
 
