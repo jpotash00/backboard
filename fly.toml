@@ -21,8 +21,8 @@
 # Retention: run the sweeper on a schedule (drops run partitions past OFFBOARD_RETENTION_DAYS):
 #   fly ssh console -C "python -m api.retention /data/runs"
 
-app = "<APP_NAME>"
-primary_region = "<REGION>"
+app = "offboard"
+primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
