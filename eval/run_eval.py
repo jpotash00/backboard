@@ -81,6 +81,7 @@ def to_result(persona: Persona, transcript: Transcript) -> Result:
         turns_used=o.turns_used,
         intervention_type=iv_type,
         expected_intervention_type=persona.expected_intervention_type,
+        misleading_tell=persona.misleading_tell,
     )
 
 
@@ -122,12 +123,13 @@ def print_summary(results: list[Result]) -> None:
     print("#  MILESTONE 1 SCORES")
     print("#" * 78)
 
-    print("\n  per persona:")
+    print("\n  per persona:  (trap = dropdown gets it wrong; tell = tell MISLEADS)")
     print(f"  {'#':>2}  {'true reason':<21} {'diagnosed':<21} {'conf':>5} "
-          f"{'trap':>4} {'ok':>3}")
+          f"{'trap':>4} {'tell':>5} {'ok':>3}")
     for r in sorted(results, key=lambda r: r.persona_id):
         print(f"  {r.persona_id:>2}  {r.hidden_reason:<21} {r.diagnosed_reason:<21} "
               f"{r.confidence:>5.2f} {'yes' if r.is_cover_story_trap else ' - ':>4} "
+              f"{'lies' if r.misleading_tell else ' - ':>5} "
               f"{'✅' if r.reason_correct else '❌':>3}")
 
     print(f"\n  {'metric':<34}{'interviewer':>14}{'dropdown':>12}")
@@ -139,6 +141,10 @@ def print_summary(results: list[Result]) -> None:
           f"   <- the real metric")
     print(f"  {'intervention correctness':<34}"
           f"{s.intervention_correctness:>13.0%}{'':>12}")
+    if s.n_misleading:
+        print(f"  {'misleading-tell accuracy':<34}"
+              f"{s.misleading_tell_accuracy:>13.0%}{'':>12}"
+              f"   <- n={s.n_misleading}; anti-telegraphing")
 
     print(f"\n  calibration:  mean conf when RIGHT = {s.mean_conf_correct:.2f}   "
           f"when WRONG = {s.mean_conf_wrong:.2f}   "

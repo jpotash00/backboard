@@ -54,6 +54,11 @@ class Persona:
     user: UserContext
     # The intervention TYPE policy should land on for this churner, given ACME's menu.
     expected_intervention_type: str
+    # True when the behavioral tell (usage_summary) points AWAY from the truth -- it
+    # superficially matches a different reason, and may even get that wrong reason
+    # corroborated. A model that just reads the tell line fails these; only the
+    # conversation recovers the truth. This is the anti-telegraphing control.
+    misleading_tell: bool = False
     # Runtime roleplay state (populated when the persona is run).
     _history: list = field(default_factory=list, repr=False)
 
@@ -264,5 +269,62 @@ def build_personas() -> list[Persona]:
                               "once. Budget comes up repeatedly in past support chats.",
             ),
             expected_intervention_type="discount",
+        ),
+        # ------------------------------------------------------------------------------
+        # Adversarial personas (§5, anti-telegraphing). The behavioral tell MISLEADS:
+        # usage_summary reads like a different reason -- and the corroboration net
+        # (taxonomy.corroboration) actually BACKS the wrong reason -- so a model that
+        # pattern-matches the tell line lands confidently wrong. The truth surfaces only
+        # if the interviewer digs in conversation. These exist so the eval stops
+        # rewarding a model that just reads usage_summary.
+        # ------------------------------------------------------------------------------
+        Persona(
+            id=11,
+            hidden_reason="product_quality",
+            cover_story="not_using_it",
+            opening_line="I've just stopped using it, so I'm going to cancel.",
+            personality="An analyst who quietly lost trust in the numbers. Measured, not "
+                        "angry -- they just stopped opening it and never filed a ticket.",
+            hidden_description="You stopped because the dashboards started showing numbers you "
+                              "knew were wrong -- events double-counting, a funnel that didn't "
+                              "reconcile with your billing. You never opened a support ticket; "
+                              "you just quietly lost trust and drifted away. The need never "
+                              "ended -- you'd still be using it if you could trust it.",
+            user=UserContext(
+                user_id="u11", plan="Growth", mrr=199, tenure_days=280,
+                logins_last_30d=2, activated=True,
+                # Tell MISLEADS: a clean usage cliff with no tickets reads exactly like
+                # value_ended (need finished) -- and value_ended's corroboration rule
+                # (logins < 3) is satisfied, so the WRONG reason gets a confidence boost.
+                usage_summary="Heavy daily use for months, then a sharp cliff to near-zero ~3 "
+                              "weeks ago. No support tickets on file. Looks like the need "
+                              "simply ended.",
+            ),
+            expected_intervention_type="support",
+            misleading_tell=True,
+        ),
+        Persona(
+            id=12,
+            hidden_reason="switched_competitor",
+            cover_story="too_expensive",
+            opening_line="It's just gotten too expensive to justify.",
+            personality="A data lead mid-migration to a competitor, running both tools in "
+                        "parallel until cutover. Leads with price; won't mention the switch "
+                        "unless asked directly where they're headed.",
+            hidden_description="You've already chosen PostHog and you're part-way through "
+                              "migrating -- you still use Acme daily only because the cutover "
+                              "isn't finished. The decision is made. Price is a convenient "
+                              "thing to say; the real reason is you're leaving for PostHog.",
+            user=UserContext(
+                user_id="u12", plan="Growth", mrr=199, tenure_days=300,
+                logins_last_30d=26, activated=True,
+                # Tell MISLEADS: high, steady usage + a price complaint reads like a happy,
+                # engaged price_value_mismatch churner -- and pvm's corroboration rule
+                # (activated == true) is satisfied, so the WRONG reason is corroborated too.
+                usage_summary="Active nearly every day, steady usage -- no decline at all. "
+                              "Long-tenured, fully activated power user.",
+            ),
+            expected_intervention_type="roadmap",
+            misleading_tell=True,
         ),
     ]

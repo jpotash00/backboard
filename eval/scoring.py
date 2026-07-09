@@ -33,6 +33,9 @@ class Result:
     turns_used: int
     intervention_type: Optional[str]      # the type policy landed on, or None
     expected_intervention_type: str
+    # True when the behavioral tell points AWAY from the truth (see Persona.misleading_tell).
+    # Scored separately so the tell-reader shortcut can't hide inside the aggregate.
+    misleading_tell: bool = False
 
     @property
     def reason_correct(self) -> bool:
@@ -63,11 +66,15 @@ class Scores:
     mean_conf_wrong: float
     confident_and_wrong: int          # conf >= floor but reason wrong -- the danger cases
     mean_turns: float
+    # Anti-telegraphing control: accuracy on the personas whose behavioral tell MISLEADS.
+    # A model that just reads usage_summary craters here even if the aggregate looks fine.
+    misleading_tell_accuracy: float
     # Baseline for the delta.
     baseline_diagnostic_accuracy: float
     baseline_cover_story_penetration: float
     n: int
     n_traps: int
+    n_misleading: int
 
 
 def baseline_reason(cover_story: str) -> Reason:
@@ -80,6 +87,7 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
     correct = [r for r in results if r.reason_correct]
     wrong = [r for r in results if not r.reason_correct]
     traps = [r for r in results if r.is_cover_story_trap]
+    misleading = [r for r in results if r.misleading_tell]
 
     conf_correct = [r.confidence for r in correct]
     conf_wrong = [r.confidence for r in wrong]
@@ -98,6 +106,9 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
             1 for r in wrong if r.confidence >= confidence_floor
         ),
         mean_turns=_rate(sum(r.turns_used for r in results), n),
+        misleading_tell_accuracy=_rate(
+            sum(r.reason_correct for r in misleading), len(misleading)
+        ),
         baseline_diagnostic_accuracy=_rate(
             sum(baseline_reason(r.cover_story) == r.hidden_reason for r in results), n
         ),
@@ -107,6 +118,7 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
         ),
         n=n,
         n_traps=len(traps),
+        n_misleading=len(misleading),
     )
 
 

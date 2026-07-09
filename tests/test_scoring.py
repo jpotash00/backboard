@@ -3,11 +3,12 @@
 from eval.scoring import Result, baseline_reason, crux_split_ok, score
 
 
-def r(pid, hidden, cover, diagnosed, conf=0.9, turns=1, iv="x", exp="x"):
+def r(pid, hidden, cover, diagnosed, conf=0.9, turns=1, iv="x", exp="x", misleading=False):
     return Result(
         persona_id=pid, hidden_reason=hidden, cover_story=cover,
         diagnosed_reason=diagnosed, confidence=conf, turns_used=turns,
         intervention_type=iv, expected_intervention_type=exp,
+        misleading_tell=misleading,
     )
 
 
@@ -68,6 +69,23 @@ def test_intervention_correctness():
     ]
     s = score(results)
     assert s.intervention_correctness == 0.5
+
+
+def test_misleading_tell_accuracy_scored_separately():
+    results = [
+        # misleading tell, recovered the truth anyway -> counts
+        r(11, "product_quality", "not_using_it", "product_quality", misleading=True),
+        # misleading tell, fell for the tell (diagnosed the corroborated wrong reason)
+        r(12, "switched_competitor", "too_expensive", "price_value_mismatch", misleading=True),
+        # honest tell -> excluded from the misleading-tell metric
+        r(1, "never_activated", "too_expensive", "never_activated"),
+    ]
+    s = score(results)
+    assert s.n_misleading == 2
+    assert s.misleading_tell_accuracy == 0.5  # 1 of 2 misleading personas recovered
+    # aggregate accuracy is higher than the misleading-tell slice -- the shortcut hides
+    # in the aggregate but is exposed by the separate metric.
+    assert s.diagnostic_accuracy > s.misleading_tell_accuracy
 
 
 def test_crux_split():

@@ -227,6 +227,25 @@ Every completed session is appended to `runs/sessions.jsonl` (full transcript + 
 
 ## 4. Onboarding a company (the config model)
 
+> **You rarely author a config from scratch — you review a proposed one.** The
+> `onboarding.propose_config` step takes messy input (pasted pricing/docs + the list of
+> saves the company is authorized to offer) and returns a **validated `ProductConfig`** to
+> approve or tweak. The LLM only *structures* the input; the taxonomy and policy come from
+> validated defaults, and `validate()` is the backstop. Scraping is a pluggable adapter
+> (`onboarding.adapters`), not a requirement — the paste path always works.
+>
+> ```python
+> from onboarding import propose_config, ProposalInput
+> proposal = propose_config(ProposalInput(
+>     offers=["30% off for 3 months", "free onboarding call", "pause up to 2 months"],
+>     product_text=pasted_pricing_and_docs,   # or an adapter's .gather()
+> ))
+> proposal.config      # a validated ProductConfig, ready to review
+> proposal.notes       # assumptions the model made — what the human should check
+> ```
+
+The rest of this section is the config a proposal produces (and what you'd hand-edit).
+
 Everything company-specific lives in a **`ProductConfig`**. The engine, API, and SDK are
 generic; swap the config and the same code becomes a different company's cancel flow.
 Nothing in the engine is SaaS-specific except the *defaults*.
