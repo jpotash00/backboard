@@ -24,3 +24,6 @@ sdk/dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Scratch eval output
+scratch_runs/
