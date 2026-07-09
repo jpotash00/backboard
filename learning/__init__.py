@@ -7,6 +7,15 @@ over your own data, batch and reviewable -- not LLM retraining, and not a silent
 docs/DECISIONING.md §7.
 """
 
+from .experiment import (
+    CellResult,
+    JoinedSession,
+    JoinReport,
+    analyze,
+    cells,
+    join_sessions,
+)
+from .experiment import report as causal_report
 from .recalibrate import (
     ProposedChange,
     RecalibrationProposal,
@@ -25,4 +34,12 @@ __all__ = [
     "report",
     "RecalibrationProposal",
     "ProposedChange",
+    # Causal readout (the holdout half of the flywheel)
+    "analyze",
+    "join_sessions",
+    "cells",
+    "causal_report",
+    "CellResult",
+    "JoinedSession",
+    "JoinReport",
 ]

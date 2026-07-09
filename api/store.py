@@ -32,6 +32,12 @@ class SessionState:
     # What the user did with the offer: {"accepted": bool}. The flywheel's ground truth --
     # the realized save that recalibrates save_prior / effectiveness later.
     resolution: Optional[dict] = None
+    # Experiment arm: "treatment" (offer served) or "control" (diagnosed, offer withheld).
+    # Assigned once at session start; see api.experiment.
+    arm: str = "treatment"
+    # The intervention policy WOULD have served, computed regardless of arm. For control this
+    # is the counterfactual offer (never shown); it makes the two arms comparable per cell.
+    intended_intervention_id: Optional[str] = None
 
     def snapshot(self) -> dict:
         """Serialize everything except the live Interviewer and the model client. The
@@ -48,6 +54,8 @@ class SessionState:
             "closing_message": self.closing_message,
             "done": self.done,
             "resolution": self.resolution,
+            "arm": self.arm,
+            "intended_intervention_id": self.intended_intervention_id,
         }
 
 
@@ -70,6 +78,8 @@ def restore(data: dict, config: ProductConfig, client) -> SessionState:
         closing_message=data.get("closing_message"),
         done=data.get("done", False),
         resolution=data.get("resolution"),
+        arm=data.get("arm", "treatment"),
+        intended_intervention_id=data.get("intended_intervention_id"),
     )
 
 

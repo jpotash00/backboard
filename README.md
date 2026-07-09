@@ -121,3 +121,8 @@ anything else. **Read the transcripts** — where it got stuck is the product sp
 For how an engineer calls the SDK, runs the API, onboards a company via a
 `ProductConfig`, and how the whole thing is designed end to end, see
 **[docs/GUIDE.md](docs/GUIDE.md)**.
+
+For how the decision engine authorizes offers (LLM diagnoses, policy authorizes; the
+declared decision trace; EV scoring), see **[docs/DECISIONING.md](docs/DECISIONING.md)**.
+For the randomized **holdout experiment** that measures the *causal* incremental save —
+so offer efficiency is a number, not a claim — see **[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)**.

@@ -3,15 +3,17 @@ client so they're deterministic and need no ANTHROPIC_API_KEY. We exercise the r
 routing, auth, session store, and policy wiring -- only the LLM is faked."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
-from api.registry import DEMO_PUBLIC_KEY
+from api.registry import Customer, CustomerRegistry, DEMO_PUBLIC_KEY
 from api.store import SessionStore
 from api.transcripts import TranscriptLogger
+from engine import Experiment
+from eval.configs import ACME
 
 
 @dataclass
@@ -241,3 +243,81 @@ def test_resolution_unknown_session_is_404(tmp_path):
 def test_resolution_needs_auth(tmp_path):
     client, sid = _resolve_a_session(tmp_path)
     assert client.post(f"/sessions/{sid}/resolution", json={"accepted": True}).status_code == 401
+
+
+# --------------------------------------------------------------------------------------
+# Holdout experiment: control arm is diagnosed but shown no offer; outcomes ingest.
+# --------------------------------------------------------------------------------------
+def _holdout_client(tmp_path, outputs, fraction):
+    """An app whose only customer runs at `fraction` holdout, so we can force an arm."""
+    held = replace(ACME, experiment=Experiment(holdout_fraction=fraction, experiment_id="t"))
+    reg = CustomerRegistry()
+    reg.register(Customer(id="acme", public_key=DEMO_PUBLIC_KEY, config=held))
+    app = create_app(
+        registry=reg,
+        store=SessionStore(),
+        logger=TranscriptLogger(directory=str(tmp_path)),
+        client_factory=lambda: ScriptedClient(outputs),
+    )
+    return TestClient(app)
+
+
+def _diagnose_price_outputs():
+    return [
+        json.dumps({"action": "ask", "message": "why?"}),
+        json.dumps({"action": "diagnose", "reason": "price_value_mismatch",
+                    "confidence": 0.9, "evidence": "daily user, cost",
+                    "cover_story": "too_expensive", "savable": True, "message": "got it"}),
+    ]
+
+
+def test_control_arm_is_diagnosed_but_offer_withheld(tmp_path):
+    client = _holdout_client(tmp_path, _diagnose_price_outputs(), fraction=1.0)  # everyone control
+    sid = client.post("/sessions", json={"user_id": "u", "activated": True,
+                                         "tenure_days": 200}, headers=AUTH).json()["session_id"]
+    body = client.post(f"/sessions/{sid}/turn",
+                       json={"user_message": "too pricey"}, headers=AUTH).json()
+    # Diagnosis still happens (we keep the reason -- the baseline denominator)...
+    assert body["done"] is True
+    assert body["outcome"]["reason"] == "price_value_mismatch"
+    # ...but NO offer is served: falls through to the host's normal cancel flow.
+    assert body["intervention"] is None
+    assert body["outcome"]["intervention_id"] is None
+
+    client.post(f"/sessions/{sid}/resolution", json={"accepted": False}, headers=AUTH)
+    rec = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    assert rec["arm"] == "control"
+    assert rec["offered"] is False                      # accept-rate denominator excludes it
+    assert rec["intended_intervention_type"] == "discount"  # counterfactual kept for the read
+
+
+def test_treatment_arm_serves_the_offer(tmp_path):
+    client = _holdout_client(tmp_path, _diagnose_price_outputs(), fraction=0.0)  # everyone treated
+    sid = client.post("/sessions", json={"user_id": "u", "activated": True,
+                                         "tenure_days": 200}, headers=AUTH).json()["session_id"]
+    body = client.post(f"/sessions/{sid}/turn",
+                       json={"user_message": "too pricey"}, headers=AUTH).json()
+    assert body["intervention"]["id"] == "discount_50_3mo"
+    client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)
+    rec = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    assert rec["arm"] == "treatment"
+    assert rec["offered"] is True
+    assert rec["intended_intervention_type"] == "discount"
+
+
+def test_outcomes_endpoint_appends_ground_truth(tmp_path):
+    client = make_client([], tmp_path)
+    r = client.post("/outcomes",
+                    json={"user_id": "u9", "active": False,
+                          "observed_at": "2026-03-01T00:00:00+00:00"}, headers=AUTH)
+    assert r.status_code == 200 and r.json()["status"] == "recorded"
+    rec = json.loads((tmp_path / "outcomes.jsonl").read_text().strip())
+    assert rec["user_id"] == "u9" and rec["active"] is False
+    assert rec["customer_id"] == "acme"
+
+
+def test_outcomes_endpoint_needs_auth(tmp_path):
+    client = make_client([], tmp_path)
+    r = client.post("/outcomes", json={"user_id": "u", "active": True,
+                                       "observed_at": "2026-03-01T00:00:00+00:00"})
+    assert r.status_code == 401

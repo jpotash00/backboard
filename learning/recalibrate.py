@@ -17,8 +17,11 @@ each then shrunk toward the current value by sample size, and only proposed once
 `apply_proposal()` builds an updated Scoring only when a human decides to.
 
 IMPORTANT caveat, surfaced in every report: these rates are OBSERVATIONAL. You only see
-outcomes for offers you actually made, so the estimates are selection-biased. For causal
-effect (and to learn about offers policy currently withholds) pair this with a holdout arm.
+outcomes for offers you actually made, so the estimates are selection-biased -- accept rate
+counts always-stayers as saves and can't see post-accept churn. For the CAUSAL effect
+(incremental retention vs a randomized holdout) use `learning.experiment`, which supersedes
+this once the holdout has matured; this module remains useful before then / where no holdout
+is run.
 """
 
 import json

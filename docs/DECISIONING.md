@@ -220,10 +220,13 @@ not yet built:
   (`POST /sessions/:id/resolution` → `runs/resolutions.jsonl`) and `learning.propose`
   re-fits `save_prior` / `type_effectiveness` from it — a reviewable diff (`learning.report`),
   applied only when a human approves (`learning.apply_proposal`); thin cells are gated, and
-  the report headlines the selection-bias caveat. *Next:* the **holdout arm** to de-bias it —
-  the estimates are observational (you only see offers you made), so large moves shouldn't be
-  trusted without randomized exploration.
-- **Holdout arm.** Randomly withhold/vary offers for a small %, declare the arm on each
-  outcome, and measure *incremental* saves — so offer efficiency is a number, not a claim.
+  the report headlines the selection-bias caveat.
+- **Holdout arm — causal measurement.** *Shipped:* a randomized control arm (diagnosed, offer
+  withheld) + `POST /outcomes` downstream retention + `learning.experiment`, which measures
+  *incremental* saves as `lift = R_treatment − R_control` per (reason, offer) with confidence
+  intervals — the causal `save_prior × effectiveness`, de-biased of the always-stayers and
+  post-accept churn accept rate can't see. Offer efficiency is now a number, not a claim. See
+  **[EXPERIMENTS.md](EXPERIMENTS.md)**. *Next:* auto-propose the measured lift back into
+  `Scoring` (human-approved, like `apply_proposal`) once cells reach significance.
 - **Narration (safe LLM use).** An optional model call that *explains* an already-made
   decision in plain language — never one that makes it.

@@ -165,6 +165,29 @@ class Scoring:
 
 
 @dataclass
+class Experiment:
+    """The measurement layer: a randomized holdout so the flywheel calibrates on CAUSAL
+    incremental retention, not accept rate.
+
+    `holdout_fraction` of sessions are assigned to a control arm -- fully interviewed and
+    diagnosed (you keep the reason data) but shown NO offer. Comparing retention of the
+    treated vs held-out arm at `horizon_days` yields the true incremental save rate
+    (R_treatment - R_control), which is exactly what `save_prior * effectiveness` estimates.
+    Without this, accept/offered counts always-stayers as saves and can't see post-accept
+    churn -- see learning.recalibrate's OBSERVATIONAL caveat.
+
+    Default `holdout_fraction=0.0` = experiment off (every session treated); a customer
+    opts in when they're ready to trade a slice of saves for a causal read on their spend.
+    `experiment_id` namespaces the randomization so changing it re-draws every assignment
+    (start a clean experiment) rather than silently mixing two designs' data."""
+    holdout_fraction: float = 0.0
+    experiment_id: str = "default"
+    # Days after the offer decision at which retention is measured. The outcome ingested via
+    # POST /outcomes at/after this horizon is what counts as retained/churned for the readout.
+    horizon_days: int = 30
+
+
+@dataclass
 class Policy:
     """The business rulebook -- per company. Which resolution each reason earns, which
     reasons may be bought back with margin, and how sure the model must be to act at all.
@@ -205,6 +228,7 @@ class ProductConfig:
     interventions: list[Intervention] = field(default_factory=list)
     reasons: list[ReasonDef] = field(default_factory=lambda: list(DEFAULT_REASONS))
     policy: Policy = field(default_factory=Policy)
+    experiment: Experiment = field(default_factory=Experiment)
     config_version: str = "1"
 
     def reason_ids(self) -> list[str]:
@@ -244,6 +268,13 @@ class ProductConfig:
         for t, c in sc.min_confidence_by_type.items():
             if not 0.0 <= c <= 1.0:
                 raise ValueError(f"scoring.min_confidence_by_type['{t}'] must be in [0, 1]")
+        ex = self.experiment
+        if not 0.0 <= ex.holdout_fraction <= 1.0:
+            raise ValueError("experiment.holdout_fraction must be in [0, 1]")
+        if not ex.experiment_id:
+            raise ValueError("experiment.experiment_id must be non-empty")
+        if ex.horizon_days <= 0:
+            raise ValueError("experiment.horizon_days must be positive")
         return self
 
 

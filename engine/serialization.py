@@ -14,6 +14,7 @@ from typing import Any
 
 from .taxonomy import (
     DEFAULT_REASONS,
+    Experiment,
     Intervention,
     Policy,
     ProductConfig,
@@ -57,6 +58,11 @@ def config_to_dict(c: ProductConfig) -> dict[str, Any]:
                 "default_effectiveness": c.policy.scoring.default_effectiveness,
                 "min_confidence_by_type": dict(c.policy.scoring.min_confidence_by_type),
             },
+        },
+        "experiment": {
+            "holdout_fraction": c.experiment.holdout_fraction,
+            "experiment_id": c.experiment.experiment_id,
+            "horizon_days": c.experiment.horizon_days,
         },
     }
 
@@ -107,6 +113,13 @@ def config_from_dict(data: dict[str, Any]) -> ProductConfig:
         pol_kwargs["scoring"] = Scoring(**sc_kwargs)
     policy = Policy(**pol_kwargs)
 
+    ex = data.get("experiment") or {}
+    ex_kwargs: dict[str, Any] = {}
+    for k in ("holdout_fraction", "experiment_id", "horizon_days"):
+        if k in ex:
+            ex_kwargs[k] = ex[k]
+    experiment = Experiment(**ex_kwargs)
+
     config = ProductConfig(
         product_name=data["product_name"],
         product_context=data["product_context"],
@@ -117,6 +130,7 @@ def config_from_dict(data: dict[str, Any]) -> ProductConfig:
         interventions=interventions,
         reasons=reasons,
         policy=policy,
+        experiment=experiment,
         config_version=str(data.get("config_version", "1")),
     )
     return config.validate()

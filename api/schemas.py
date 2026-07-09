@@ -46,6 +46,19 @@ class ResolutionRequest(BaseModel):
     accepted: bool
 
 
+class OutcomeReport(BaseModel):
+    """POST /outcomes body: the customer's billing backend reporting whether a user is still
+    subscribed at (or after) the experiment horizon. This is the downstream ground truth the
+    holdout needs -- accept rate alone can't see post-accept churn or always-stayers.
+
+    `user_id` must match the id used at session start so the readout can join it back to the
+    arm and offer. `observed_at` is when the status was true (ISO 8601); the customer supplies
+    it so a batch backfill reports real observation times, not ingestion time."""
+    user_id: str = Field(min_length=1, max_length=200)
+    active: bool
+    observed_at: str = Field(min_length=1, max_length=64)
+
+
 class OutcomeModel(BaseModel):
     """The product. `cover_story` vs `reason` is the whole pitch in one field."""
     reason: str

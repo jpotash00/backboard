@@ -6,11 +6,12 @@ diagnoses, `policy.decide` authorizes -- the model never picks the intervention.
 """
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from uuid import uuid4
 
 from engine import Interviewer, UserContext, decide
 
+from .experiment import CONTROL, assign
 from .identity import IdentityError, verify_identity
 from .registry import Customer
 from .schemas import (
@@ -44,6 +45,12 @@ def start_session(
     interviewer = Interviewer(customer.config, user, client=client)
     first_question = interviewer.open()
 
+    # Assign the experiment arm up front, before any offer is decided. Control users are still
+    # fully interviewed (we keep their diagnosis) but will have the offer withheld -- that's
+    # the baseline retention the causal read compares against. See api.experiment.
+    exp = customer.config.experiment
+    arm = assign(exp.experiment_id, customer.id, user.user_id, exp.holdout_fraction)
+
     session_id = uuid4().hex
     state = SessionState(
         session_id=session_id,
@@ -52,6 +59,7 @@ def start_session(
         config=customer.config,
         user=user,
         transcript=[{"speaker": "interviewer", "text": first_question}],
+        arm=arm,
     )
     store.create(state)
     return CreateSessionResponse(session_id=session_id, message=first_question)
@@ -85,11 +93,16 @@ def run_turn(
         store.save(state)
         return TurnResponse(message=question, done=False)
 
-    # Diagnosed. Policy authorizes the intervention from the customer's own menu.
+    # Diagnosed. Policy authorizes the intervention from the customer's own menu. This runs
+    # for BOTH arms -- the decision is what we record as `intended`, the counterfactual that
+    # makes control comparable to treatment. The offer is only WITHHELD, never un-decided.
     final = decide(outcome, state.config, state.user)
+    state.intended_intervention_id = final.intervention_id
+
+    served = _serve(final, state.arm)
     closing = _closing_message(state.interviewer)
 
-    state.outcome = final
+    state.outcome = served
     state.closing_message = closing
     state.done = True
     if closing:
@@ -100,8 +113,26 @@ def run_turn(
     return TurnResponse(
         message=closing,
         done=True,
-        outcome=OutcomeModel(**asdict(final)),
-        intervention=_resolve_intervention(state, final.intervention_id),
+        outcome=OutcomeModel(**asdict(served)),
+        intervention=_resolve_intervention(state, served.intervention_id),
+    )
+
+
+def _serve(final, arm: str):
+    """What the user actually sees. Treatment gets the decided offer; control gets NO offer
+    (the diagnosis is kept, the intervention is stripped) so it falls to the host's normal
+    cancel flow -- the clean baseline. The full decision_trace/economics stay on the outcome
+    for audit; only the servable `intervention_id` is cleared, which is what gates rendering."""
+    if arm != CONTROL:
+        return final
+    would_have = final.intervention_id or "nothing"
+    return replace(
+        final,
+        intervention_id=None,
+        savable=False,
+        mode="defer",
+        rationale=(f"holdout control -- offer withheld to measure baseline retention "
+                   f"(would have served: {would_have})"),
     )
 
 
@@ -133,6 +164,20 @@ def record_resolution(
         logger.log_resolution(state, accepted)
         store.save(state)
     return {"status": "recorded", "accepted": state.resolution["accepted"]}
+
+
+def record_outcome(
+    customer: Customer,
+    user_id: str,
+    active: bool,
+    observed_at: str,
+    logger: TranscriptLogger,
+) -> dict:
+    """Ingest a downstream retention observation for a user. Stateless -- it does not touch
+    the (ephemeral) session store; it appends to the durable outcome log, joined to the arm
+    offline. Reporting for a user we never offered to is harmless (it just won't join)."""
+    logger.log_outcome(customer.id, user_id, active, observed_at)
+    return {"status": "recorded", "user_id": user_id, "active": bool(active)}
 
 
 def req_to_user(req: CreateSessionRequest, customer: Customer, now: int) -> UserContext:

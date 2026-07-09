@@ -26,6 +26,7 @@ from .registry import Customer, CustomerRegistry, default_registry
 from .schemas import (
     CreateSessionRequest,
     CreateSessionResponse,
+    OutcomeReport,
     ResolutionRequest,
     TurnRequest,
     TurnResponse,
@@ -33,6 +34,7 @@ from .schemas import (
 from .service import (
     IdentityRejected,
     SessionNotFound,
+    record_outcome,
     record_resolution,
     run_turn,
     start_session,
@@ -164,6 +166,17 @@ def create_app(
             return record_resolution(store, customer, session_id, req.accepted, logger)
         except SessionNotFound:
             raise HTTPException(status_code=404, detail="session not found")
+
+    @app.post("/outcomes")
+    def outcomes(
+        req: OutcomeReport,
+        request: Request,
+        customer: Customer = Depends(authenticate),
+    ) -> dict:
+        # Downstream retention ground truth (see api.experiment). Rate-limited like the other
+        # write endpoints; it's cheap (no model call) but still a public, authenticated write.
+        _rate_limit(request, customer, TURN_LIMIT_PER_KEY, TURN_LIMIT_PER_IP, "outcome")
+        return record_outcome(customer, req.user_id, req.active, req.observed_at, logger)
 
     return app
 
