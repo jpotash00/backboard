@@ -4,28 +4,26 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-<title>Offboard · Save the customers you can</title>
-<meta name="description" content="Offboard runs an AI exit interview inside your cancel flow — it finds the real reason customers leave, makes the right save in the moment, and reports the MRR it kept." />
+<title>Offboard — cancel flows that save customers</title>
+<meta name="description" content="A drop-in AI cancel flow. It runs the exit interview, finds the real reason customers leave, makes the right save in the moment, and reports the MRR it kept." />
 <style>
   :root {
-    --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f5f5f7;
-    --fg: #17171b; --fg-2: #52525b; --muted: #8a8a94;
-    --border: #ececf1; --border-2: #dedee4;
-    --brand: #d97757; --brand-fg: #ffffff; --brand-soft: #fbeee8;
-    --accent: #635bff; --accent-soft: #efeefe;
-    --ok: #067647; --ok-soft: #e7f5ee;
-    --shadow: 0 1px 2px rgba(20,20,40,.06), 0 8px 24px rgba(20,20,40,.05);
+    --bg: #ffffff; --bg-2: #fafafa; --surface: #ffffff;
+    --fg: #0a0a0a; --fg-2: #4a4a4f; --muted: #8a8a90;
+    --border: #ededf0; --border-2: #e2e2e6;
+    --brand: #d97757; --brand-fg: #ffffff;
+    --btn: #0a0a0a; --btn-fg: #ffffff;
+    --glow: rgba(217,119,87,.14);
     --radius: 14px; --radius-sm: 9px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0a0a0c; --surface: #141418; --surface-2: #1b1b21;
-      --fg: #f4f4f6; --fg-2: #b5b5bf; --muted: #83838f;
-      --border: #24242c; --border-2: #32323c;
-      --brand: #e08a6d; --brand-fg: #14100e; --brand-soft: #241812;
-      --accent: #8b85ff; --accent-soft: #1e1c3a;
-      --ok: #4ade80; --ok-soft: #10241a;
-      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px rgba(0,0,0,.35);
+      --bg: #000000; --bg-2: #0a0a0b; --surface: #0e0e10;
+      --fg: #f6f6f7; --fg-2: #a7a7ae; --muted: #6e6e77;
+      --border: #1c1c20; --border-2: #26262c;
+      --brand: #e08a6d; --brand-fg: #16100d;
+      --btn: #f6f6f7; --btn-fg: #0a0a0a;
+      --glow: rgba(217,119,87,.20);
     }
   }
   * { box-sizing: border-box; }
@@ -34,187 +32,265 @@
     margin: 0; background: var(--bg); color: var(--fg);
     font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    overflow-x: hidden;
   }
-  a { color: inherit; }
+  a { color: inherit; text-decoration: none; }
   .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; }
 
   /* ---- Top bar ---- */
   .topbar {
-    position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
-    padding: 13px 22px; background: color-mix(in srgb, var(--bg) 80%, transparent);
-    backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 14px;
+    padding: 14px 24px; background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border);
   }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 660; letter-spacing: -.01em; font-size: 15.5px; }
-  .brand .mark { width: 24px; height: 24px; flex: none; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 640; letter-spacing: -.02em; font-size: 15px; }
+  .brand .mark { width: 22px; height: 22px; flex: none; }
   .spacer { flex: 1; }
-  .nav-link { display: none; color: var(--fg-2); text-decoration: none; font-size: 13.5px; font-weight: 550; padding: 0 6px; }
+  .nav-link { color: var(--fg-2); font-size: 13.5px; font-weight: 500; }
   .nav-link:hover { color: var(--fg); }
-  @media (min-width: 620px) { .nav-link { display: inline; } }
+  .nav-links { display: none; gap: 22px; }
+  @media (min-width: 680px) { .nav-links { display: flex; } }
 
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-    height: 38px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600;
-    border-radius: var(--radius-sm); cursor: pointer; text-decoration: none; white-space: nowrap;
-    transition: background .12s, color .12s, border-color .12s, filter .12s, transform .06s;
+    height: 36px; padding: 0 15px; font: inherit; font-size: 13.5px; font-weight: 560;
+    border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap;
+    transition: filter .12s, background .12s, color .12s, border-color .12s, transform .06s, opacity .12s;
   }
   .btn:active { transform: translateY(1px); }
-  .btn-ghost { color: var(--fg-2); background: var(--surface); border: 1px solid var(--border-2); }
-  .btn-ghost:hover { background: var(--surface-2); color: var(--fg); }
-  .btn-primary { color: var(--brand-fg); background: var(--brand); border: 1px solid transparent; }
-  .btn-primary:hover { filter: brightness(1.05); }
-  .btn-lg { height: 44px; padding: 0 22px; font-size: 15px; }
+  .btn-ghost { color: var(--fg); background: transparent; border: 1px solid var(--border-2); }
+  .btn-ghost:hover { background: var(--bg-2); border-color: var(--fg-2); }
+  .btn-solid { color: var(--btn-fg); background: var(--btn); border: 1px solid transparent; }
+  .btn-solid:hover { filter: brightness(1.12); }
+  .btn-lg { height: 46px; padding: 0 22px; font-size: 15px; }
 
   /* ---- Layout ---- */
-  .wrap { max-width: 960px; margin: 0 auto; padding: 0 22px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
 
   /* ---- Hero ---- */
-  .hero { text-align: center; padding: 76px 22px 60px; }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 22px;
-    padding: 5px 13px 5px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 560;
-    color: var(--fg-2); background: var(--surface); border: 1px solid var(--border-2); box-shadow: var(--shadow);
+  .hero { position: relative; text-align: center; padding: 92px 24px 40px; }
+  .hero::before {
+    content: ""; position: absolute; top: -140px; left: 50%; transform: translateX(-50%);
+    width: 780px; height: 480px; max-width: 120vw; pointer-events: none; z-index: -1;
+    background: radial-gradient(50% 50% at 50% 50%, var(--glow), transparent 70%);
   }
-  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 26px;
+    padding: 5px 13px 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+    color: var(--fg-2); background: var(--surface); border: 1px solid var(--border-2);
+  }
+  .badge .tag { color: var(--brand); font-weight: 600; }
+  .badge .sep { width: 1px; height: 12px; background: var(--border-2); }
   h1 {
-    font-size: clamp(30px, 5.4vw, 50px); line-height: 1.06; letter-spacing: -.032em;
-    margin: 0 auto 20px; max-width: 16ch; font-weight: 700;
+    font-size: clamp(34px, 6vw, 60px); line-height: 1.02; letter-spacing: -.04em;
+    margin: 0 auto 22px; max-width: 15ch; font-weight: 640;
   }
-  h1 .grad { background: linear-gradient(120deg, var(--brand), #e0a07f); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .lede { font-size: clamp(15.5px, 2.2vw, 18.5px); color: var(--fg-2); max-width: 60ch; margin: 0 auto 32px; }
-  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
-  .cta-note { margin-top: 18px; font-size: 12.5px; color: var(--muted); }
-  .cta-note .mono { color: var(--fg-2); }
+  h1 .dim { color: var(--muted); }
+  .lede { font-size: clamp(16px, 2.1vw, 19px); color: var(--fg-2); max-width: 56ch; margin: 0 auto 30px; letter-spacing: -.01em; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 11px; justify-content: center; align-items: center; }
 
-  /* ---- Section headers ---- */
-  section { padding: 30px 0; }
-  .sec-head { text-align: center; margin-bottom: 34px; }
-  .sec-head .kicker { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: var(--brand); }
-  .sec-head h2 { font-size: clamp(22px, 3.4vw, 28px); letter-spacing: -.02em; margin: 8px 0 0; font-weight: 680; }
-  .sec-head p { color: var(--fg-2); max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; }
+  /* install command */
+  .install {
+    display: inline-flex; align-items: center; gap: 12px; margin-top: 26px;
+    padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--surface);
+    border: 1px solid var(--border-2); font-size: 13.5px;
+  }
+  .install .cmd { color: var(--fg); }
+  .install .cmd .sig { color: var(--muted); }
+  .install .cmd .pkg { color: var(--brand); }
+  .install .copy {
+    display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+    border: 0; border-radius: 999px; background: var(--bg-2); color: var(--fg-2); cursor: pointer; transition: color .12s, background .12s;
+  }
+  .install .copy:hover { color: var(--fg); background: var(--border); }
+  .install .copy svg { width: 14px; height: 14px; }
+  .install .copy.done { color: var(--brand); }
 
-  /* ---- Steps ---- */
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  @media (max-width: 720px) { .steps { grid-template-columns: 1fr; } }
-  .step {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 24px 22px; box-shadow: var(--shadow);
+  /* ---- Code window ---- */
+  .code-wrap { margin: 56px auto 0; max-width: 760px; }
+  .window {
+    text-align: left; background: #0d0d12; border: 1px solid #232330; border-radius: var(--radius);
+    box-shadow: 0 30px 70px -30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02) inset; overflow: hidden;
   }
-  .step .n {
-    display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
-    border-radius: 10px; background: var(--brand-soft); color: var(--brand); margin-bottom: 15px;
+  .window .titlebar {
+    display: flex; align-items: center; gap: 8px; padding: 12px 15px; border-bottom: 1px solid #1e1e29;
+    background: #0b0b0f;
   }
-  .step .n svg { width: 18px; height: 18px; }
-  .step h3 { font-size: 15.5px; margin: 0 0 7px; letter-spacing: -.01em; font-weight: 640; }
-  .step p { margin: 0; color: var(--fg-2); font-size: 13.8px; }
+  .window .dots { display: flex; gap: 7px; }
+  .window .dots i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .window .dots i:nth-child(1){ background:#ff5f57; } .window .dots i:nth-child(2){ background:#febc2e; } .window .dots i:nth-child(3){ background:#28c840; }
+  .window .fname { margin-left: 6px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: #6f6f80; }
+  .window pre {
+    margin: 0; padding: 20px 22px; overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.72;
+    color: #d7d7e2; tab-size: 2;
+  }
+  .tok-c { color: #6b6b7d; font-style: italic; }   /* comment */
+  .tok-k { color: #e0a07f; }                        /* keyword */
+  .tok-s { color: #8fd6a0; }                        /* string */
+  .tok-f { color: #c3b6f5; }                        /* function/prop */
+  .tok-n { color: #82b8f0; }                        /* number */
+  .tok-p { color: #7f7f92; }                        /* punctuation */
 
-  /* ---- Metrics strip ---- */
-  .metrics {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow); overflow: hidden;
-  }
-  @media (max-width: 620px) { .metrics { grid-template-columns: 1fr; } }
-  .metric { padding: 26px 24px; text-align: center; border-right: 1px solid var(--border); }
-  .metric:last-child { border-right: 0; }
-  @media (max-width: 620px) { .metric { border-right: 0; border-bottom: 1px solid var(--border); } .metric:last-child { border-bottom: 0; } }
-  .metric .m-v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
-  .metric .m-k { color: var(--fg-2); font-size: 13.5px; margin-top: 5px; }
+  /* ---- Sections ---- */
+  section { padding: 46px 0; }
+  .sec-head { max-width: 640px; margin: 0 0 34px; }
+  .sec-head .kicker { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--brand); text-transform: uppercase; }
+  .sec-head h2 { font-size: clamp(24px, 3.6vw, 33px); letter-spacing: -.03em; margin: 12px 0 0; font-weight: 620; }
+  .sec-head p { color: var(--fg-2); margin: 13px 0 0; font-size: 15px; max-width: 52ch; }
+
+  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  @media (max-width: 760px) { .feature-grid { grid-template-columns: 1fr; } }
+  .feature { background: var(--surface); padding: 26px 24px; }
+  .feature .ic { width: 20px; height: 20px; color: var(--brand); margin-bottom: 15px; }
+  .feature h3 { font-size: 15.5px; margin: 0 0 7px; letter-spacing: -.015em; font-weight: 600; }
+  .feature p { margin: 0; color: var(--fg-2); font-size: 13.8px; }
+
+  /* value row */
+  .value { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+  @media (max-width: 680px) { .value { grid-template-columns: 1fr; gap: 26px; } }
+  .value .v-k { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .value h4 { font-size: 19px; letter-spacing: -.02em; margin: 10px 0 6px; font-weight: 600; }
+  .value p { margin: 0; color: var(--fg-2); font-size: 14px; }
 
   /* ---- CTA band ---- */
-  .band {
-    text-align: center; background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); box-shadow: var(--shadow); padding: 46px 24px; margin: 20px 0 10px;
-  }
-  .band h2 { font-size: clamp(22px, 3.4vw, 27px); letter-spacing: -.02em; margin: 0 0 10px; font-weight: 680; }
-  .band p { color: var(--fg-2); margin: 0 auto 26px; max-width: 46ch; }
+  .band { position: relative; text-align: center; padding: 66px 24px; border-top: 1px solid var(--border); overflow: hidden; }
+  .band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(60% 100% at 50% 0%, var(--glow), transparent 70%); }
+  .band h2 { font-size: clamp(26px, 4vw, 38px); letter-spacing: -.03em; margin: 0 auto 14px; max-width: 18ch; font-weight: 640; }
+  .band p { color: var(--fg-2); margin: 0 auto 28px; max-width: 46ch; font-size: 15.5px; }
 
   /* ---- Footer ---- */
-  footer { border-top: 1px solid var(--border); margin-top: 40px; }
-  .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; padding: 26px 22px 60px; }
+  footer { border-top: 1px solid var(--border); }
+  .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; padding: 30px 24px 70px; }
   .foot .brand { font-size: 14px; }
-  .foot .links { display: flex; flex-wrap: wrap; gap: 6px 20px; }
-  .foot a { color: var(--fg-2); text-decoration: none; font-size: 13px; }
+  .foot .links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  .foot a { color: var(--fg-2); font-size: 13px; }
   .foot a:hover { color: var(--fg); }
   .foot .copy { color: var(--muted); font-size: 12.5px; }
+
+  /* toast */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0;
+    background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 550; padding: 9px 16px; border-radius: 999px;
+    pointer-events: none; transition: opacity .16s, transform .16s; z-index: 60; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
 <div class="topbar">
-  <a href="/" class="brand" style="text-decoration:none">
+  <a href="/" class="brand">
     <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
     Offboard
   </a>
   <div class="spacer"></div>
-  <a href="#how" class="nav-link">How it works</a>
-  <a href="/onboard" class="btn btn-ghost">Set up</a>
-  <a href="/dashboard" class="btn btn-primary">Dashboard</a>
+  <nav class="nav-links">
+    <a href="#how" class="nav-link">How it works</a>
+    <a href="#why" class="nav-link">Why it wins</a>
+    <a href="/onboard" class="nav-link">Set up</a>
+  </nav>
+  <a href="/dashboard" class="btn btn-solid">Dashboard</a>
 </div>
 
 <header class="hero">
-  <div class="eyebrow"><span class="dot"></span> AI-native cancel flow</div>
-  <h1>Find out why customers <span class="grad">really</span> cancel — and save the ones you can.</h1>
+  <div class="badge"><span class="tag">SDK</span><span class="sep"></span> One import behind your cancel button</div>
+  <h1>Cancel flows that save customers.</h1>
   <p class="lede">
-    Offboard drops an AI exit interview into your cancel flow. It uncovers the true reason behind
-    every churn — not the checkbox one — makes the right retention offer in the moment, and reports
-    the saves and the MRR it kept in one clean dashboard.
+    A drop-in AI exit interview. Offboard finds the <em>real</em> reason a customer is leaving,
+    makes the right save in the moment, and reports the MRR it kept — you never touch a prompt.
   </p>
   <div class="cta-row">
-    <a href="/dashboard" class="btn btn-primary btn-lg">Open the dashboard</a>
-    <a href="/onboard" class="btn btn-ghost btn-lg">Set up a tenant</a>
+    <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
+    <a href="/dashboard" class="btn btn-ghost btn-lg">Open the dashboard</a>
   </div>
-  <p class="cta-note">Already onboarded? Open the dashboard with your <span class="mono">customer_id</span> and <span class="mono">signing_secret</span>.</p>
+  <div class="install">
+    <span class="cmd mono"><span class="sig">$</span> npm install <span class="pkg">offboard</span></span>
+    <button class="copy" id="copyInstall" title="Copy" aria-label="Copy install command">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+    </button>
+  </div>
+
+  <div class="code-wrap">
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">cancel-button.js</span></div>
+<pre><span class="tok-k">import</span> Offboard <span class="tok-k">from</span> <span class="tok-s">"offboard"</span><span class="tok-p">;</span>
+
+Offboard<span class="tok-p">.</span><span class="tok-f">init</span><span class="tok-p">({</span> <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span> <span class="tok-p">});</span>
+
+<span class="tok-c">// Behind your “Cancel subscription” button:</span>
+Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><span class="tok-p">({</span>
+  <span class="tok-f">userId</span><span class="tok-p">:</span> <span class="tok-s">"user_123"</span><span class="tok-p">,</span>
+  <span class="tok-f">context</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-f">plan</span><span class="tok-p">:</span> <span class="tok-s">"Starter"</span><span class="tok-p">,</span> <span class="tok-f">mrr</span><span class="tok-p">:</span> <span class="tok-n">49</span><span class="tok-p">,</span> <span class="tok-f">tenure_days</span><span class="tok-p">:</span> <span class="tok-n">210</span> <span class="tok-p">},</span>
+
+  <span class="tok-f">onAccept</span><span class="tok-p">:</span> <span class="tok-p">(</span>outcome<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-f">applyOffer</span><span class="tok-p">(</span>outcome<span class="tok-p">),</span>   <span class="tok-c">// they took the save</span>
+  <span class="tok-f">onCancel</span><span class="tok-p">:</span> <span class="tok-p">()</span>        <span class="tok-k">=&gt;</span> <span class="tok-f">completeCancellation</span><span class="tok-p">()</span> <span class="tok-c">// let them go</span>
+<span class="tok-p">});</span></pre>
+    </div>
+  </div>
 </header>
 
 <main class="wrap">
   <section id="how">
     <div class="sec-head">
       <div class="kicker">How it works</div>
-      <h2>From cancel click to kept revenue</h2>
-      <p>Three moving parts — drop it in, let the engine work the save, and read what it learned.</p>
+      <h2>From cancel click to kept revenue.</h2>
+      <p>Drop the SDK in, let the engine run the save, and read exactly what it learned — no prompts, no pipeline to babysit.</p>
     </div>
-    <div class="steps">
-      <div class="step">
-        <span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></span>
-        <h3>Drop it in your flow</h3>
-        <p>A few lines behind your cancel button. The customer meets a short, human conversation instead of a dead-end form.</p>
+    <div class="feature-grid">
+      <div class="feature">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+        <h3>One import</h3>
+        <p>A single call behind your cancel button renders a short, theme-matched conversation — not a dead-end form.</p>
       </div>
-      <div class="step">
-        <span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+      <div class="feature">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <h3>Diagnose &amp; save</h3>
-        <p>The engine finds the real reason to leave and offers the right save — a pause, a discount, a plan change — only when it's worth making.</p>
+        <p>The engine finds the true reason and authorizes the right offer — a pause, a discount, a plan change — only when it's worth it.</p>
       </div>
-      <div class="step">
-        <span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        <h3>Read the intelligence</h3>
-        <p>Every session lands in your dashboard: why users churn, which offers land, and the MRR you retained — read-only, tenant-isolated.</p>
+      <div class="feature">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <h3>Measure it</h3>
+        <p>Every session flows to your dashboard: why users churn, which offers land, and the MRR you retained — read-only, per tenant.</p>
       </div>
     </div>
   </section>
 
-  <section>
-    <div class="metrics">
-      <div class="metric"><div class="m-v">The real reason</div><div class="m-k">Diagnosed, not self-reported</div></div>
-      <div class="metric"><div class="m-v">In the moment</div><div class="m-k">Targeted saves as they cancel</div></div>
-      <div class="metric"><div class="m-v">Retained MRR</div><div class="m-k">Measured, per tenant</div></div>
+  <section id="why">
+    <div class="sec-head">
+      <div class="kicker">Why it wins</div>
+      <h2>The reason on the form is never the real one.</h2>
     </div>
-  </section>
-
-  <section>
-    <div class="band">
-      <h2>Turn your cancel page into your best retention channel.</h2>
-      <p>Set up a tenant in minutes, then watch the saves — and the reasons — roll into your dashboard.</p>
-      <div class="cta-row">
-        <a href="/onboard" class="btn btn-primary btn-lg">Set up Offboard</a>
-        <a href="/dashboard" class="btn btn-ghost btn-lg">I have an account</a>
+    <div class="value">
+      <div>
+        <div class="v-k">Diagnosed</div>
+        <h4>The real reason</h4>
+        <p>Not a self-reported checkbox — the engine reads the conversation and the account context to name the true cause.</p>
+      </div>
+      <div>
+        <div class="v-k">In the moment</div>
+        <h4>The right save</h4>
+        <p>The offer is chosen and authorized live, while the customer is still deciding — the only moment it changes minds.</p>
+      </div>
+      <div>
+        <div class="v-k">Measured</div>
+        <h4>Retained MRR</h4>
+        <p>Saves and kept revenue are attributed per tenant, so retention stops being a guess you argue about in a meeting.</p>
       </div>
     </div>
   </section>
 </main>
 
+<section class="band">
+  <h2>Turn your cancel page into your best retention channel.</h2>
+  <p>Set up a tenant in minutes, then watch the saves — and the reasons — roll into your dashboard.</p>
+  <div class="cta-row">
+    <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
+    <a href="/dashboard" class="btn btn-ghost btn-lg">I have an account</a>
+  </div>
+</section>
+
 <footer>
   <div class="wrap foot">
-    <span class="brand" style="font-size:14px">
-      <svg class="mark" viewBox="0 0 120 120" aria-hidden="true" style="width:20px;height:20px"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+    <span class="brand">
+      <svg class="mark" viewBox="0 0 120 120" aria-hidden="true" style="width:19px;height:19px"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
       Offboard
     </span>
     <div class="spacer"></div>
@@ -226,5 +302,23 @@
     <span class="copy">© Offboard</span>
   </div>
 </footer>
+
+<div id="toast"></div>
+
+<script>
+  const toast = (msg) => {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 1400);
+  };
+  const copyBtn = document.getElementById("copyInstall");
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText("npm install offboard");
+      copyBtn.classList.add("done"); toast("Copied");
+      setTimeout(() => copyBtn.classList.remove("done"), 1100);
+    } catch { toast("Copy failed"); }
+  });
+</script>
 </body>
 </html>

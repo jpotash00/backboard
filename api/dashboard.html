@@ -7,24 +7,26 @@
 <title>Offboard · Dashboard</title>
 <style>
   :root {
-    --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f4f4f6;
-    --fg: #1a1a1f; --fg-2: #52525b; --muted: #8a8a94;
-    --border: #e9e9ee; --border-2: #dcdce2;
-    --accent: #635bff; --accent-fg: #ffffff; --accent-soft: #efeefe;
+    --bg: #ffffff; --surface: #ffffff; --surface-2: #fafafa;
+    --fg: #0a0a0a; --fg-2: #4a4a4f; --muted: #8a8a90;
+    --border: #ededf0; --border-2: #e2e2e6;
+    --brand: #d97757; --btn: #0a0a0a; --btn-fg: #ffffff;
+    --accent: #d97757; --accent-fg: #ffffff; --accent-soft: #fbeee8;
     --ok: #067647; --ok-soft: #e7f5ee; --warn: #b54708; --warn-soft: #fdf0e6;
     --err: #b42318; --err-soft: #fdecea;
-    --track: #edecf1; --shadow: 0 1px 2px rgba(20,20,40,.06), 0 1px 3px rgba(20,20,40,.04);
+    --track: #ededf0; --shadow: 0 1px 2px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
     --radius: 12px; --radius-sm: 8px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0a0a0c; --surface: #141418; --surface-2: #1c1c22;
-      --fg: #f4f4f6; --fg-2: #b8b8c2; --muted: #83838f;
-      --border: #26262e; --border-2: #32323c;
-      --accent: #8b85ff; --accent-fg: #0a0a0c; --accent-soft: #1e1c3a;
+      --bg: #000000; --surface: #0e0e10; --surface-2: #141417;
+      --fg: #f6f6f7; --fg-2: #a7a7ae; --muted: #6e6e77;
+      --border: #1c1c20; --border-2: #26262c;
+      --brand: #e08a6d; --btn: #f6f6f7; --btn-fg: #0a0a0a;
+      --accent: #e08a6d; --accent-fg: #16100d; --accent-soft: #241812;
       --ok: #4ade80; --ok-soft: #10241a; --warn: #fdb022; --warn-soft: #2a1c0a;
       --err: #f97066; --err-soft: #2a1512;
-      --track: #26262e; --shadow: 0 1px 2px rgba(0,0,0,.4);
+      --track: #1c1c20; --shadow: 0 1px 2px rgba(0,0,0,.5);
     }
   }
   * { box-sizing: border-box; }
@@ -47,8 +49,8 @@
     padding: 12px 22px; background: color-mix(in srgb, var(--bg) 82%, transparent);
     backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--border);
   }
-  .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -.01em; }
-  .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(140deg, var(--accent), #a78bfa); flex: none; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 640; letter-spacing: -.02em; }
+  .brand .mark { width: 22px; height: 22px; flex: none; }
   .brand small { color: var(--muted); font-weight: 500; }
   .spacer { flex: 1; }
   .who { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg-2); }
@@ -92,7 +94,7 @@
   .meter .metrics { display: flex; gap: 18px; align-items: baseline; font-size: 12.5px; color: var(--fg-2); }
   .meter .metrics b { color: var(--fg); font-weight: 620; }
   .track { grid-column: 1 / -1; height: 7px; border-radius: 999px; background: var(--track); overflow: hidden; }
-  .track > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #a78bfa); }
+  .track > span { display: block; height: 100%; border-radius: 999px; background: var(--brand); }
 
   /* ---- Tables ---- */
   .scroll { overflow-x: auto; }
@@ -119,9 +121,12 @@
   /* ---- Gate ---- */
   .gate-wrap { min-height: calc(100vh - 59px); display: grid; place-items: center; padding: 24px; }
   .gate { width: 100%; max-width: 420px; }
-  .gate .card { padding: 26px 26px 24px; }
-  .gate h2 { font-size: 17px; margin: 0 0 4px; letter-spacing: -.01em; }
-  .gate p { color: var(--fg-2); font-size: 13px; margin: 0 0 20px; }
+  .gate .card { padding: 30px 26px 24px; }
+  .gate-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .gate-brand .mark { width: 40px; height: 40px; flex: none; }
+  .gate-brand .word { font-size: 18px; font-weight: 660; letter-spacing: -.02em; }
+  .gate h2 { font-size: 17px; margin: 0 0 4px; letter-spacing: -.01em; text-align: center; }
+  .gate p { color: var(--fg-2); font-size: 13px; margin: 0 0 20px; text-align: center; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
   .inputwrap { position: relative; display: flex; align-items: center; }
@@ -139,10 +144,10 @@
   .minibtn.done { color: var(--ok); }
   .btn-primary {
     width: 100%; height: 40px; margin-top: 6px; font: inherit; font-weight: 620; cursor: pointer;
-    color: var(--accent-fg); background: var(--accent); border: 0; border-radius: var(--radius-sm);
+    color: var(--btn-fg); background: var(--btn); border: 0; border-radius: var(--radius-sm);
     transition: filter .12s;
   }
-  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:hover { filter: brightness(1.12); }
   .btn-primary:disabled { opacity: .55; cursor: default; }
   .gate-status { color: var(--err); font-size: 12.5px; margin-top: 12px; min-height: 16px; }
 
@@ -155,7 +160,9 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo"></span> Offboard <small>Dashboard</small></div>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+  </div>
   <div class="spacer"></div>
   <div id="who" class="who hidden"></div>
   <button id="maskBtn" class="iconbtn hidden" title="Hide revenue figures" aria-label="Toggle sensitive figures"></button>
@@ -169,6 +176,10 @@
 <div id="gate" class="gate-wrap">
   <div class="gate">
     <div class="card">
+      <div class="gate-brand">
+        <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+        <div class="word">Offboard</div>
+      </div>
       <h2>Sign in to your dashboard</h2>
       <p>Your <span class="mono">customer_id</span> and <span class="mono">signing_secret</span>, issued at onboarding. Held only in this tab.</p>
       <div class="field">
