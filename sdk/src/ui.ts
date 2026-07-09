@@ -8,35 +8,55 @@
  *   #1 The conversation is bounded — the engine stops at MAX_TURNS; the UI just
  *      renders whatever the server returns and closes on `done`.
  *
- * Design intent: a modern AI-chat surface in the Claude / ChatGPT idiom — neutral
- * monochrome palette, a single restrained accent, full-width assistant turns with an
- * avatar, and an auto-growing composer with the send control inside the field. It's
- * a drop-in widget, so it can't require React/Tailwind on the host: instead it adopts
- * shadcn/ui's *design language* (its neutral token system, `--radius`, ring-focus,
- * "new-york" restraint) in scoped CSS. Someone is leaving — nothing should feel like
- * a trap; the exit stays dignified and one tap away.
+ * Design intent: it should look like the app it's embedded in, not like a third-party
+ * chatbot bolted on. The surface uses a modern AI-chat layout (full-width assistant turns
+ * with an avatar, only the user gets a bubble, an auto-growing composer with the send
+ * control inside the field) rendered in a neutral shadcn/ui token system. Because it's a
+ * drop-in widget it can't require React/Tailwind on the host, so it adopts the host's
+ * *design language* instead: by default a self-contained neutral palette, and via
+ * `theme.adoptHostTokens` it inherits the host page's shadcn CSS variables directly, so
+ * the widget takes on the customer's colours and radius (light and dark). `theme.accent`
+ * and per-token overrides let any host match explicitly. Someone is leaving — nothing
+ * should feel like a trap; the exit stays dignified and one tap away.
  */
 
 import { OffboardApiError, SessionClient } from "./client.js";
-import type { ResolvedOutcome, ShowCancelFlowOptions, UserContext } from "./types.js";
+import type {
+  OffboardTheme,
+  ResolvedOutcome,
+  ShowCancelFlowOptions,
+  UserContext,
+} from "./types.js";
 
 const STYLE_ID = "offboard-styles";
 
 /**
  * All styles are scoped under `.offboard-overlay` and driven by CSS variables so
- * light/dark are one source of truth. Tokens are shadcn/ui's neutral (zinc) scale in
- * HSL — `--ob-bg/-fg/-muted/-border/-ring/-primary` map 1:1 to shadcn's
- * `--background/-foreground/-muted/-border/-ring/-primary`. `--ob-accent` defaults to
- * the monochrome primary (the ChatGPT look); a host can point it at one brand colour
- * (e.g. Claude's clay `15 63% 59%`) and every CTA + the send button follow.
+ * light/dark are one source of truth. The palette is shadcn/ui's neutral (zinc) scale in
+ * HSL, held in two layers:
+ *   - `--ob-*-default` — the built-in values (flipped for dark by the media query below).
+ *   - `--ob-*`         — what the widget actually paints with. By default these ARE the
+ *                        built-ins; with `.ob-adopt` (opt-in, set by `theme.adoptHostTokens`)
+ *                        they inherit the host page's shadcn variables instead, so the widget
+ *                        looks like the app it's embedded in. Per-token `theme` overrides are
+ *                        applied inline on the overlay and win over both.
+ * `--ob-accent` follows `--ob-primary` (the neutral monochrome CTA) unless a host points it
+ * at a brand colour. The two-layer split matters: the dark media query only flips the
+ * *-default fallbacks, so host adoption (the host's own light/dark) is never clobbered by the
+ * viewer's OS theme.
  */
 const CSS = `
 .offboard-overlay,.offboard-overlay *{ box-sizing:border-box }
 .offboard-overlay{
-  --ob-bg:0 0% 100%; --ob-fg:240 10% 3.9%;
-  --ob-muted:240 4.8% 95.9%; --ob-muted-fg:240 3.8% 46.1%;
-  --ob-border:240 5.9% 90%; --ob-ring:240 5% 34%;
-  --ob-primary:240 5.9% 10%; --ob-primary-fg:0 0% 98%;
+  --ob-bg-default:0 0% 100%; --ob-fg-default:240 10% 3.9%;
+  --ob-muted-default:240 4.8% 95.9%; --ob-muted-fg-default:240 3.8% 46.1%;
+  --ob-border-default:240 5.9% 90%; --ob-ring-default:240 5% 34%;
+  --ob-primary-default:240 5.9% 10%; --ob-primary-fg-default:0 0% 98%;
+
+  --ob-bg:var(--ob-bg-default); --ob-fg:var(--ob-fg-default);
+  --ob-muted:var(--ob-muted-default); --ob-muted-fg:var(--ob-muted-fg-default);
+  --ob-border:var(--ob-border-default); --ob-ring:var(--ob-ring-default);
+  --ob-primary:var(--ob-primary-default); --ob-primary-fg:var(--ob-primary-fg-default);
   --ob-accent:var(--ob-primary); --ob-accent-fg:var(--ob-primary-fg);
   --ob-good:142 71% 35%; --ob-good-soft:142 71% 35%;
   --ob-radius:.65rem;
@@ -54,14 +74,27 @@ const CSS = `
 }
 @media (prefers-color-scheme: dark){
   .offboard-overlay{
-    --ob-bg:240 10% 6%; --ob-fg:0 0% 98%;
-    --ob-muted:240 3.7% 15.9%; --ob-muted-fg:240 5% 64.9%;
-    --ob-border:240 3.7% 18%; --ob-ring:240 4.9% 64%;
-    --ob-primary:0 0% 98%; --ob-primary-fg:240 5.9% 10%;
+    --ob-bg-default:240 10% 6%; --ob-fg-default:0 0% 98%;
+    --ob-muted-default:240 3.7% 15.9%; --ob-muted-fg-default:240 5% 64.9%;
+    --ob-border-default:240 3.7% 18%; --ob-ring-default:240 4.9% 64%;
+    --ob-primary-default:0 0% 98%; --ob-primary-fg-default:240 5.9% 10%;
     --ob-good:142 69% 58%; --ob-good-soft:142 69% 58%;
     --ob-shadow:0 10px 15px -3px rgba(0,0,0,.5), 0 40px 80px -20px rgba(0,0,0,.6);
     background:hsl(0 0% 0% / .55);
   }
+}
+/* Opt-in host adoption: inherit the app's shadcn tokens, built-ins as the fallback. Explicit
+   theme overrides are set inline on the overlay, so they still win over these. */
+.offboard-overlay.ob-adopt{
+  --ob-bg:var(--background, var(--ob-bg-default));
+  --ob-fg:var(--foreground, var(--ob-fg-default));
+  --ob-muted:var(--muted, var(--ob-muted-default));
+  --ob-muted-fg:var(--muted-foreground, var(--ob-muted-fg-default));
+  --ob-border:var(--border, var(--ob-border-default));
+  --ob-ring:var(--ring, var(--ob-ring-default));
+  --ob-primary:var(--primary, var(--ob-primary-default));
+  --ob-primary-fg:var(--primary-foreground, var(--ob-primary-fg-default));
+  --ob-radius:var(--radius, .65rem);
 }
 /* Phone: a full-screen conversation (100dvh dodges the iOS URL-bar jump), composer
    pinned above the keyboard. Tablet/desktop: a centered, roomy card. */
@@ -151,11 +184,16 @@ const CSS = `
 .offboard-send:not(:disabled):active{ transform:scale(.92) }
 .offboard-send:disabled{ opacity:.3; cursor:default }
 
-/* The escape hatch — hard constraint #3. Understated, never buried, always one tap. */
+/* The escape hatch — hard constraint #3. Understated so it doesn't compete with the
+   conversation, but underlined so it unmistakably reads as a tap-able action and never
+   as decorative caption text: calm is not the same as buried. */
 .offboard-escape{ display:block; margin:8px auto 0; padding:6px 10px; border:0;
   background:transparent; color:hsl(var(--ob-muted-fg)); font:inherit; font-size:13px;
-  cursor:pointer; border-radius:8px; transition:color .16s ease, background .16s ease }
-.offboard-escape:hover{ color:hsl(var(--ob-fg)); background:hsl(var(--ob-muted)) }
+  cursor:pointer; border-radius:8px; text-decoration:underline; text-underline-offset:3px;
+  text-decoration-color:hsl(var(--ob-muted-fg) / .5);
+  transition:color .16s ease, background .16s ease, text-decoration-color .16s ease }
+.offboard-escape:hover,.offboard-escape:focus-visible{ color:hsl(var(--ob-fg));
+  background:hsl(var(--ob-muted)); text-decoration-color:hsl(var(--ob-fg)) }
 
 /* In-chat offer card — the personalized "one reason to stay", presented calmly. */
 .offboard-offer{ align-self:stretch; max-width:100%; margin:2px 0; border-radius:calc(var(--ob-radius) + 4px);
@@ -264,6 +302,8 @@ export class CancelFlowModal {
     this.overlay.setAttribute("role", "dialog");
     this.overlay.setAttribute("aria-modal", "true");
     this.overlay.setAttribute("aria-label", "Cancel subscription");
+    // Make it look like the host app: opt-in host-token adoption + explicit overrides.
+    this.applyTheme(opts.theme);
 
     const modal = el("div", "offboard-modal");
 
@@ -317,6 +357,34 @@ export class CancelFlowModal {
         void this.submit();
       }
     });
+  }
+
+  /**
+   * Make the widget match the host app. `adoptHostTokens` flips on the `.ob-adopt` class so
+   * the scoped CSS inherits the page's shadcn variables; explicit tokens are set inline on the
+   * overlay (highest precedence) so they win over both adoption and the built-in defaults.
+   * Values are raw HSL triples (`"222 47% 11%"`) — validated loosely so a stray `#hex`/`hsl()`
+   * can't inject arbitrary CSS through `setProperty`.
+   */
+  private applyTheme(theme?: OffboardTheme): void {
+    if (!theme) return;
+    if (theme.adoptHostTokens) this.overlay.classList.add("ob-adopt");
+    const set = (value: string | undefined, prop: string, triple = true): void => {
+      if (!value) return;
+      if (triple && !/^[0-9.\s%]+$/.test(value)) return; // reject anything but an HSL triple
+      this.overlay.style.setProperty(prop, value);
+    };
+    set(theme.background, "--ob-bg");
+    set(theme.foreground, "--ob-fg");
+    set(theme.muted, "--ob-muted");
+    set(theme.mutedForeground, "--ob-muted-fg");
+    set(theme.border, "--ob-border");
+    set(theme.ring, "--ob-ring");
+    set(theme.primary, "--ob-primary");
+    set(theme.primaryForeground, "--ob-primary-fg");
+    set(theme.accent, "--ob-accent");
+    set(theme.accentForeground, "--ob-accent-fg");
+    set(theme.radius, "--ob-radius", false); // a CSS length, not a colour triple
   }
 
   /** Grow the textarea to fit its content, up to the CSS max-height then scroll. */
@@ -401,7 +469,12 @@ export class CancelFlowModal {
 
     const top = el("div", "offboard-offer-top");
     const eyebrow = el("div", "offboard-offer-eyebrow");
-    eyebrow.innerHTML = SPARK_ICON + "<span>Just for you</span>";
+    // Honest, non-scarcity framing by default: the offer earns trust from the diagnosis it's
+    // tied to (the sub line below), not from "exclusive / just for you" theatre.
+    const eyebrowLabel = el("span");
+    eyebrowLabel.textContent = this.opts.offerEyebrow ?? "Here's what I can do";
+    eyebrow.innerHTML = SPARK_ICON;
+    eyebrow.appendChild(eyebrowLabel);
     const headline = el("div", "offboard-offer-headline");
     headline.textContent = intervention.description;
     top.append(eyebrow, headline);

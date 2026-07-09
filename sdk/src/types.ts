@@ -97,6 +97,40 @@ export interface SessionTurnResponse {
 
 // --- SDK options ---
 
+/**
+ * Make the widget look like YOUR app. The surface renders in a neutral shadcn/ui (zinc)
+ * palette by default and is theme-aware (light/dark) on its own. Use this to match your
+ * product's design language.
+ *
+ * All colours are **raw HSL triples**, the way shadcn/Radix store them — `"222 47% 11%"`,
+ * NOT `"#112233"` and NOT `"hsl(222 47% 11%)"`. (`radius` is a normal CSS length.)
+ */
+export interface OffboardTheme {
+  /** Adopt the host page's shadcn/ui CSS variables (`--background`, `--foreground`,
+   * `--primary`, `--muted`, `--border`, `--ring`, `--radius`, …) so the widget inherits your
+   * palette automatically, light and dark, with zero per-call config. Opt-in because it
+   * assumes classic HSL-triple shadcn tokens; leave it off on non-shadcn hosts (or hosts on
+   * the newer oklch tokens) and set the tokens below explicitly instead. Any explicit token
+   * here still wins over adoption. */
+  adoptHostTokens?: boolean;
+  /** The accent behind the primary CTA and the send button. Defaults to your primary. This is
+   * the one knob most hosts touch — point it at your brand colour and every CTA follows. */
+  accent?: string;
+  accentForeground?: string;
+  /** Individual token overrides. Each wins over both host adoption and the built-in default. */
+  background?: string;
+  foreground?: string;
+  muted?: string;
+  mutedForeground?: string;
+  border?: string;
+  ring?: string;
+  primary?: string;
+  primaryForeground?: string;
+  /** Corner radius, e.g. `"0.5rem"`. Defaults to the host `--radius` (when adopting) or the
+   * built-in `0.65rem`. */
+  radius?: string;
+}
+
 export interface InitOptions {
   /** Your publishable key, `pk_...`. */
   publicKey: string;
@@ -142,4 +176,12 @@ export interface ShowCancelFlowOptions {
   justCancelLabel?: string;
   acceptLabel?: string;
   declineLabel?: string;
+
+  /** Small label above the in-chat offer. Honest by default ("Here's what I can do"); avoid
+   * false-scarcity copy — the offer's credibility comes from the diagnosis it's tied to, not
+   * from manufactured exclusivity. */
+  offerEyebrow?: string;
+
+  /** Make the widget match your product's look. See {@link OffboardTheme}. */
+  theme?: OffboardTheme;
 }
