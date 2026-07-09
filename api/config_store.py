@@ -25,6 +25,8 @@ def load_customer_file(path: Union[str, Path]) -> Customer:
         id=data["customer_id"],
         public_key=data["public_key"],
         config=config_from_dict(data["config"]),
+        signing_secret=data.get("signing_secret"),
+        allowed_origins=tuple(data.get("allowed_origins", ())),
     )
 
 

@@ -299,7 +299,7 @@ export class CancelFlowModal {
     this.showTyping();
     const user: UserContext = { user_id: this.opts.userId, ...this.opts.context };
     try {
-      const res = await this.client.open(user);
+      const res = await this.client.open(user, this.opts.identityToken);
       this.sessionId = res.session_id;
       this.hideTyping();
       this.setStatus("online");

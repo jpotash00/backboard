@@ -22,6 +22,14 @@ class Customer:
     id: str
     public_key: str
     config: ProductConfig
+    # HMAC secret the customer's backend signs identity tokens with. When set, the browser's
+    # raw economic fields are ignored and only signed claims authorize a paid offer (see
+    # api.identity). None = dev/unsecured mode: the request body is trusted as-is.
+    signing_secret: Optional[str] = None
+    # Browser origins allowed to call the API with this key. Empty = allow any (dev). When
+    # set, a cross-origin request from an unlisted site is rejected 403 -- defense in depth
+    # against a lifted key being driven from an attacker's page.
+    allowed_origins: tuple[str, ...] = ()
 
 
 class CustomerRegistry:

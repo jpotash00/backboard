@@ -9,8 +9,9 @@ import json
 from dataclasses import asdict
 from uuid import uuid4
 
-from engine import Interviewer, decide
+from engine import Interviewer, UserContext, decide
 
+from .identity import IdentityError, verify_identity
 from .registry import Customer
 from .schemas import (
     CreateSessionRequest,
@@ -28,13 +29,18 @@ class SessionNotFound(Exception):
     """No live session with that id for this customer."""
 
 
+class IdentityRejected(Exception):
+    """The customer requires a signed identity token and none valid was supplied."""
+
+
 def start_session(
     store: SessionStore,
     client,
     customer: Customer,
     req: CreateSessionRequest,
+    now: int,
 ) -> CreateSessionResponse:
-    user = req_to_user(req)
+    user = req_to_user(req, customer, now)
     interviewer = Interviewer(customer.config, user, client=client)
     first_question = interviewer.open()
 
@@ -129,9 +135,25 @@ def record_resolution(
     return {"status": "recorded", "accepted": state.resolution["accepted"]}
 
 
-def req_to_user(req: CreateSessionRequest):
-    from engine import UserContext
+def req_to_user(req: CreateSessionRequest, customer: Customer, now: int) -> UserContext:
+    """Build the UserContext policy will price the save on.
 
+    If the customer has a signing secret, the ONLY trusted source of economics is the signed
+    identity token -- the raw request body is treated as hostile and its money fields are
+    ignored. Without a secret (dev / demo) we trust the body, which is convenient and clearly
+    insecure; production customers get a secret at onboarding."""
+    if customer.signing_secret:
+        if not req.identity_token:
+            raise IdentityRejected("this key requires a signed identity_token")
+        try:
+            claims = verify_identity(customer.signing_secret, req.identity_token, now)
+        except IdentityError as exc:
+            raise IdentityRejected(str(exc)) from exc
+        return _user_from_claims(claims)
+    return _user_from_req(req)
+
+
+def _user_from_req(req: CreateSessionRequest) -> UserContext:
     return UserContext(
         user_id=req.user_id,
         plan=req.plan,
@@ -141,6 +163,28 @@ def req_to_user(req: CreateSessionRequest):
         activated=req.activated,
         usage_summary=req.usage_summary,
         signals=req.signals,
+    )
+
+
+def _user_from_claims(claims: dict) -> UserContext:
+    """The token is the source of truth. Coerce defensively -- a customer's signer might omit
+    a field -- but never fall back to the request body for anything that authorizes a spend."""
+    try:
+        user_id = str(claims["user_id"])
+    except KeyError as exc:
+        raise IdentityRejected("identity token missing user_id") from exc
+    signals = claims.get("signals") or {}
+    if not isinstance(signals, dict):
+        signals = {}
+    return UserContext(
+        user_id=user_id,
+        plan=str(claims.get("plan", "unknown")),
+        mrr=float(claims.get("mrr", 0.0) or 0.0),
+        tenure_days=int(claims.get("tenure_days", 0) or 0),
+        logins_last_30d=int(claims.get("logins_last_30d", 0) or 0),
+        activated=bool(claims.get("activated", False)),
+        usage_summary=str(claims.get("usage_summary", "") or ""),
+        signals=signals,
     )
 
 

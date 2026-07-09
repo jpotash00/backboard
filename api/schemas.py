@@ -8,17 +8,25 @@ from pydantic import BaseModel, Field
 
 class CreateSessionRequest(BaseModel):
     """POST /sessions body. Only `user_id` is required; the richer the behavioral
-    context, the better the diagnosis disambiguates the cover story (constraint #6)."""
-    user_id: str
-    plan: str = "unknown"
+    context, the better the diagnosis disambiguates the cover story (constraint #6).
+
+    Note the trust boundary: for a customer with a signing secret, the economic fields
+    below (plan/mrr/tenure_days/logins_last_30d/activated/signals) are IGNORED in favour of
+    the signed `identity_token` -- the browser cannot be trusted to price its own save."""
+    user_id: str = Field(min_length=1, max_length=200)
+    plan: str = Field(default="unknown", max_length=100)
     mrr: float = 0.0
     tenure_days: int = 0
     logins_last_30d: int = 0
     activated: bool = False
-    usage_summary: str = ""
+    usage_summary: str = Field(default="", max_length=2000)
     # Product-specific behavioral tells that don't fit the fixed fields
     # (e.g. {"seats_used": 7}); rendered into the interviewer's context.
     signals: dict[str, Any] = Field(default_factory=dict)
+    # A token minted by the customer's backend (api.identity.sign_identity) carrying the
+    # trusted user economics. Required when the customer is configured with a signing secret;
+    # ignored otherwise. This is what stops a browser from spoofing mrr to unlock a discount.
+    identity_token: Optional[str] = None
 
 
 class CreateSessionResponse(BaseModel):
@@ -27,7 +35,9 @@ class CreateSessionResponse(BaseModel):
 
 
 class TurnRequest(BaseModel):
-    user_message: str = Field(min_length=1)
+    # Capped: an unbounded reply is a token-blowup / abuse vector, and no honest cancel-flow
+    # answer runs to thousands of characters.
+    user_message: str = Field(min_length=1, max_length=4000)
 
 
 class ResolutionRequest(BaseModel):

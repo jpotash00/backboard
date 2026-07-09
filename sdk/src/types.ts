@@ -107,8 +107,16 @@ export interface InitOptions {
 export interface ShowCancelFlowOptions {
   /** The cancelling user's id. */
   userId: string;
-  /** Optional behavioral context; merged into the session's UserContext. */
+  /** Optional behavioral context; merged into the session's UserContext. For a key with a
+   * signing secret this is ignored in favour of `identityToken` — the browser can't be
+   * trusted to price its own save, so pass the economics through the signed token instead. */
   context?: Omit<UserContext, "user_id">;
+
+  /** A token minted by YOUR backend (never in the browser) that vouches for this user's
+   * economics — mrr, plan, tenure. Required if your Offboard key is configured with a signing
+   * secret; the engine authorizes paid offers off these signed claims, not the raw body. See
+   * the identity-verification section of the SDK README. */
+  identityToken?: string;
 
   /** The interview concluded — the diagnosis (and any authorized offer) is in. Fires once,
    * BEFORE the in-chat offer step. Optional analytics hook; the terminal action the user
