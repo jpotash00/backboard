@@ -276,9 +276,9 @@
   async function load() {
     const [analytics, ev] = await Promise.all([
       api(`/insights/${encodeURIComponent(customerId)}/analytics`),
-      api(`/insights/${encodeURIComponent(customerId)}/events?limit=50`),
+      api(`/insights/${encodeURIComponent(customerId)}/sessions?limit=50`),
     ]);
-    render(analytics, ev.events);
+    render(analytics, ev.sessions);
   }
 
   // ---- Secret field: eye + copy ----

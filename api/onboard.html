@@ -44,6 +44,9 @@
   .actions { margin-top: 20px; display: flex; gap: 10px; align-items: center; }
   .status { font-size: 13px; }
   .status.err { color: var(--err); }
+  .back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted);
+    text-decoration: none; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+  .back:hover { color: var(--fg); }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
   .banner { border-radius: var(--radius); padding: 16px; margin-bottom: 20px; font-size: 14px; }
   .banner.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
@@ -56,6 +59,7 @@
 </head>
 <body>
 <div class="wrap">
+  <a class="back" href="/">← Back</a>
   <h1>Set up your cancel flow</h1>
   <p class="sub">Tell us about your product and the save offers you're willing to make. We generate
   your keys instantly — no account, no waiting. You only ever see your own setup.</p>
@@ -82,12 +86,12 @@
     <input id="activation_definition" placeholder="connected a data source and viewed a dashboard" />
     <label>Pricing</label>
     <textarea id="pricing_summary" placeholder="$49/mo Starter (1 source), $199/mo Growth (unlimited)…"></textarea>
-    <div class="row">
-      <div><label>Competitors <span class="hint">comma-separated, optional</span></label><input id="competitors" placeholder="Amplitude, Mixpanel" /></div>
-      <div><label>Allowed website origins <span class="hint">optional; where your cancel flow runs</span></label><input id="allowed_origins" placeholder="https://app.acme.com" /></div>
+    <label>Allowed website origins <span class="hint">optional; where your cancel flow runs</span></label>
+    <input id="allowed_origins" placeholder="https://app.acme.com" />
+    <div id="handleField" class="hidden">
+      <label style="margin-top:8px">Account handle <span class="hint">that name was taken — pick another. lowercase, no spaces, can't change later</span></label>
+      <input id="customer_id" placeholder="acme" />
     </div>
-    <label style="margin-top:8px">A short handle for your account <span class="hint">lowercase, no spaces — can't change later</span></label>
-    <input id="customer_id" placeholder="acme" />
 
     <label style="margin-top:20px">Your save offers <span class="hint">the discounts/pauses/etc. you authorize — you decide these</span></label>
     <div id="offers"></div>
@@ -140,17 +144,23 @@
     })).filter((o) => o.description);
   }
   const csv = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean);
+  // Derive the account handle from the product name so we don't ask for it separately: lowercase,
+  // spaces/punctuation -> single hyphens, trimmed. If it's already taken the server 409s and we
+  // reveal the handle field so the operator can pick another.
+  const slugify = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 200);
 
   async function submit() {
     const offers = readOffers();
     const status = $("formStatus");
     status.className = "status";
     if (!code) { $("gate").classList.remove("hidden"); $("gateStatus").textContent = "a signup code is required"; return; }
-    if (!$("customer_id").value.trim()) { status.className = "status err"; status.textContent = "an account handle is required"; return; }
     if (!$("product_name").value.trim()) { status.className = "status err"; status.textContent = "product name is required"; return; }
     if (!offers.length) { status.className = "status err"; status.textContent = "add at least one save offer"; return; }
+    // Handle: the override field (only visible after a name clash) wins, else derive from the name.
+    const customer_id = $("customer_id").value.trim() || slugify($("product_name").value);
+    if (!customer_id) { status.className = "status err"; status.textContent = "product name must contain letters or numbers"; return; }
     const spec = {
-      customer_id: $("customer_id").value.trim(),
+      customer_id,
       // public_key omitted -> the server auto-generates one.
       product: {
         product_name: $("product_name").value.trim(),
@@ -159,7 +169,6 @@
         pricing_summary: $("pricing_summary").value.trim(),
       },
       offers,
-      competitors: csv("competitors"),
       allowed_origins: csv("allowed_origins"),
     };
     $("submit").disabled = true;
@@ -170,7 +179,13 @@
       status.textContent = "";
     } catch (e) {
       status.className = "status err";
-      status.textContent = e.status === 409 ? `that handle is taken: ${e.detail}`
+      if (e.status === 409) {
+        // Name clash -> surface the handle field (prefilled with the taken handle) so they can adjust.
+        $("handleField").classList.remove("hidden");
+        if (!$("customer_id").value.trim()) $("customer_id").value = customer_id;
+        $("customer_id").focus();
+      }
+      status.textContent = e.status === 409 ? `“${customer_id}” is taken — pick another handle below`
         : e.status === 422 ? `please fix: ${e.detail}`
         : e.status === 401 ? "signup code rejected — check your invite link"
         : e.status === 404 ? "signup is not enabled on this server"
