@@ -225,6 +225,31 @@ def test_resolution_accepted_is_logged(tmp_path):
     assert rec["reason"] == "price_value_mismatch"
 
 
+def test_observations_are_logged_but_never_returned_to_the_browser(tmp_path):
+    obs = {"reversibility": "conditional", "sentiment": "frustrated",
+           "competitor": "Linear", "quote": "your Jira sync broke twice this week"}
+    client = make_client([
+        json.dumps({"action": "ask", "message": "why?"}),
+        json.dumps({"action": "diagnose", "reason": "price_value_mismatch",
+                    "confidence": 0.9, "evidence": "daily user, cost",
+                    "cover_story": "too_expensive", "savable": True,
+                    "observations": obs, "message": "got it"}),
+    ], tmp_path)
+    sid = client.post("/sessions", json={"user_id": "u", "activated": True,
+                                         "tenure_days": 200}, headers=AUTH).json()["session_id"]
+    body = client.post(f"/sessions/{sid}/turn",
+                       json={"user_message": "too pricey"}, headers=AUTH).json()
+    # Internal extraction ("they don't know you can see this") must not reach the client.
+    assert "observations" not in body["outcome"]
+
+    client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)
+    # ...but it IS banked in both server-side logs for the causal readout to segment on.
+    res = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    assert res["observations"] == obs
+    sess = json.loads((tmp_path / "sessions.jsonl").read_text().strip())
+    assert sess["outcome"]["observations"] == obs
+
+
 def test_resolution_is_idempotent(tmp_path):
     client, sid = _resolve_a_session(tmp_path)
     client.post(f"/sessions/{sid}/resolution", json={"accepted": False}, headers=AUTH)

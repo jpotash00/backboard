@@ -315,3 +315,9 @@ class Outcome:
     mode: str = "defer"
     # Did the behavioral data back the diagnosis? {status, rule, raw/effective_confidence}.
     corroboration: Optional[dict] = None
+    # Structured signals the model EXTRACTED from the conversation (competitor named, price it
+    # would take, sentiment, counterfactual-probe result, ...). LOG-ONLY today: banked into the
+    # data asset so a holdout read can later show which of them predict lift. Policy never gates
+    # on these until Policy.use_observations is turned on per proven signal -- see the projection
+    # into UserContext.signals in policy. Never a decision the model made; only what it heard.
+    observations: dict = field(default_factory=dict)

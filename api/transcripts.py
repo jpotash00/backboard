@@ -64,6 +64,10 @@ class TranscriptLogger:
             "intended_intervention_type": intended_type,
             "offered": served_id is not None,
             "accepted": bool(accepted),
+            # LLM-extracted conversational signals, banked per row so the causal readout can
+            # later segment lift by them (does counterfactual.response predict a real save?).
+            # Log-only: nothing here has touched the offer decision. {} when none were emitted.
+            "observations": outcome.observations if outcome else {},
         }
         with self.resolutions_path.open("a") as f:
             f.write(json.dumps(record) + "\n")

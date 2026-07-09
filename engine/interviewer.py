@@ -105,7 +105,25 @@ If you have enough to diagnose (do this as early as you honestly can):
     "evidence": "<the specific thing they said or did that proves it>",
     "cover_story": "<what they initially claimed, or no_reason_given>",
     "savable": <true|false>,
+    "observations": {{
+      "reversibility": "<firm|conditional|ambivalent>",
+      "sentiment": "<calm|frustrated|regretful|resigned>",
+      "counterfactual": {{"probed": "<price|capability|none>",
+                         "floated": "<what you offered them, or null>",
+                         "response": "<would_stay|hesitated|waved_away|not_probed>"}},
+      "competitor": "<the competitor they named, or null>",
+      "requested_capability": "<the missing thing in their words, or null>",
+      "acceptable_price": <the monthly price they'd accept, or null>,
+      "quote": "<the single most diagnostic sentence they said>"}},
     "message": "<one warm closing sentence to the user>"}}
+
+OBSERVATIONS is EXTRACTION, never a decision. Report only what the person actually said or
+plainly showed; use null (or "not_probed"/"none") for anything you did not hear, and never
+infer to fill a field. `counterfactual` records the result of the truth-test probe only if you
+ran one; `acceptable_price` is a number only if they named or clearly implied one. These do not
+change what offer they get -- authorization stays deterministic downstream -- so a guess here
+buys nothing and a padded observation only poisons the data. Leave the whole object out if you
+genuinely heard nothing worth banking.
 
 Be honest with confidence. Low confidence is more useful than a confident guess:
 below 0.6 the caller falls back to their generic flow, which is the correct outcome
@@ -216,4 +234,7 @@ class Interviewer:
             intervention_id=None,   # policy fills this. The model never decides.
             rationale="",
             turns_used=self.turns,
+            # Extraction only, banked for the holdout read; policy does not act on it. A
+            # non-dict (bad model output) collapses to {} rather than corrupting the log.
+            observations=result.get("observations") if isinstance(result.get("observations"), dict) else {},
         )

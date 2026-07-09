@@ -77,6 +77,9 @@ class OutcomeModel(BaseModel):
     mode: str = "defer"
     # Whether the behavioral data backed the diagnosis, and the confidence it adjusted to.
     corroboration: Optional[dict[str, Any]] = None
+    # NOTE: Outcome.observations is deliberately NOT mirrored here. It's internal extraction
+    # ("they don't know you can see this") that stays in the server-side logs; Pydantic drops
+    # the extra key from asdict() so it never reaches the browser. Do not add it.
 
 
 class InterventionModel(BaseModel):

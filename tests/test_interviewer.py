@@ -116,3 +116,51 @@ def test_code_fenced_json_is_stripped():
     ])
     iv = Interviewer(_config(), _user(), client=client)
     assert iv.open() == "hi?"
+
+
+def test_observations_are_harvested_onto_the_outcome():
+    obs = {
+        "reversibility": "conditional", "sentiment": "frustrated",
+        "counterfactual": {"probed": "price", "floated": "$29", "response": "waved_away"},
+        "competitor": None, "requested_capability": None,
+        "acceptable_price": None, "quote": "it just kept crashing",
+    }
+    client = FakeClient([
+        json.dumps({"action": "ask", "message": "?"}),
+        json.dumps({"action": "diagnose", "reason": "product_quality", "confidence": 0.8,
+                    "evidence": "e", "cover_story": "too_expensive", "savable": True,
+                    "observations": obs, "message": "ok"}),
+    ])
+    iv = Interviewer(_config(), _user(), client=client)
+    iv.open()
+    _, outcome = iv.turn("crashes")
+    assert outcome.observations == obs
+    # Extraction only: it never touches what policy will authorize.
+    assert outcome.intervention_id is None
+
+
+def test_missing_observations_default_to_empty_dict():
+    client = FakeClient([
+        json.dumps({"action": "ask", "message": "?"}),
+        json.dumps({"action": "diagnose", "reason": "value_ended", "confidence": 0.9,
+                    "evidence": "e", "cover_story": "no_reason_given", "savable": False,
+                    "message": "ok"}),   # no observations key
+    ])
+    iv = Interviewer(_config(), _user(), client=client)
+    iv.open()
+    _, outcome = iv.turn("done")
+    assert outcome.observations == {}
+
+
+def test_non_dict_observations_collapse_to_empty_dict():
+    # A malformed model output must never corrupt the log with a non-dict.
+    client = FakeClient([
+        json.dumps({"action": "ask", "message": "?"}),
+        json.dumps({"action": "diagnose", "reason": "unknown", "confidence": 0.3,
+                    "evidence": "e", "cover_story": "no_reason_given", "savable": False,
+                    "observations": "frustrated, mentioned Notion", "message": "ok"}),
+    ])
+    iv = Interviewer(_config(), _user(), client=client)
+    iv.open()
+    _, outcome = iv.turn("hmm")
+    assert outcome.observations == {}
