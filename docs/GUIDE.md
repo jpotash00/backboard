@@ -31,7 +31,7 @@ That split is the entire safety story (§[5.2](#52-the-safety-split-llm-diagnose
 
 ## 2. Front-end: the SDK
 
-The npm package `offboard` renders the interview modal, runs the ≤3-question conversation
+The npm package `offboard` renders the interview modal, runs the brief (≤5-question) conversation
 against the engine, and hands you a structured `Outcome`. You never touch the LLM.
 
 > **See it run first.** [`demo/`](../demo/) is a mock billing page that drives the real
@@ -53,9 +53,26 @@ import Offboard from "offboard";
 // Once, near app startup.
 Offboard.init({
   publicKey: "pk_live_...",           // your publishable key
-  // apiBaseUrl: "https://api.offboard.dev/v1"  // override for self-hosting
+  // apiBaseUrl: "https://api.offboard.dev"   // defaults to the hosted engine; override
+                                              // for self-hosting / staging (no /v1 unless
+                                              // you also set the API's OFFBOARD_ROOT_PATH)
 });
 ```
+
+**Make it look like your app.** The modal is neutral and theme-aware out of the box; pass a
+`theme` to match your product. On a shadcn/ui host, `adoptHostTokens` inherits your CSS
+variables (colours + radius, light and dark) automatically:
+
+```js
+Offboard.showCancelFlow({
+  userId: "user_123",
+  theme: { adoptHostTokens: true, accent: "222 47% 11%" },  // raw HSL triples, not #hex
+  // ...callbacks below
+});
+```
+
+Precedence: explicit tokens > `adoptHostTokens` > the built-in default. Copy is overridable
+via `justCancelLabel` / `acceptLabel` / `declineLabel` / `offerEyebrow`.
 
 ### Show the flow when the user clicks "Cancel"
 
@@ -152,7 +169,7 @@ with the exported client:
 ```ts
 import { SessionClient } from "offboard";
 
-const client = new SessionClient("https://api.offboard.dev/v1", "pk_live_...");
+const client = new SessionClient("https://api.offboard.dev", "pk_live_...");
 
 const { session_id, message } = await client.open({ user_id: "user_123", plan: "Starter", activated: false });
 // show `message`, collect a reply, then:
@@ -303,29 +320,33 @@ so a minimal config is just the four product-fact fields.
 
 ### Store it as JSON (the production path)
 
-Configs are stored, versioned records — a file today, a DB row later. One file per
-customer:
+A customer is one JSON file on **your** server (a file today, a DB row later) — never in the
+customer's own codebase, so the offer menu and policy can't be tampered with from the browser.
+The envelope wraps the `ProductConfig` with the customer's key, signing secret, and origins:
 
 ```jsonc
-// configs/acme.json
+// $OFFBOARD_CONFIG_DIR/acme.json
 {
   "customer_id": "acme",
-  "public_key": "pk_demo_acme",
+  "public_key": "pk_live_acme",
+  "signing_secret": "…",                  // REQUIRED in prod — or the browser can spoof its economics
+  "allowed_origins": ["https://app.acme.com"],
   "config": { /* the ProductConfig, serialized — see engine.config_to_dict */ }
 }
 ```
 
-Generate one from a Python config, or hand-author it:
+**Don't hand-write this.** Run the provisioner with a tiny spec (the four product facts + the
+offer menu; everything else defaults). It mints the `signing_secret`, validates the config, and
+writes the file — so you can't accidentally ship an insecure or malformed tenant:
 
-```python
-import json
-from engine import config_to_dict, config_from_dict
-
-json.dump(config_to_dict(config), open("configs/acme.json", "w"))  # serialize
-loaded = config_from_dict(json.load(open("configs/acme.json")))    # validates on load
+```bash
+python -m onboarding.provision acme.spec.json --out "$OFFBOARD_CONFIG_DIR"
+# prints the signing_secret ONCE; the customer's backend signs identity tokens with it
 ```
 
-Point the server at the directory and it loads every `*.json` as a customer:
+Spec template: [`customer-spec.example.json`](customer-spec.example.json). Full go-live steps
+(hosting, volume, Redis, TLS): [`DEPLOY.md`](DEPLOY.md). The server globs every `*.json` in the
+directory **at boot** and registers each by `public_key`:
 
 ```bash
 export OFFBOARD_CONFIG_DIR=configs
@@ -355,7 +376,7 @@ api/     (FastAPI)               auth -> session state -> orchestration; framewo
   ▼
 engine/  (pure Python)           the durable spine — reused unchanged by API and SDK
   ├─ taxonomy.py   ProductConfig / Policy / ReasonDef / Intervention / Outcome + validate
-  ├─ interviewer.py free-form probing, ≤3 turns, emits a STRUCTURED diagnosis (JSON)
+  ├─ interviewer.py free-form probing, ≤5 turns, emits a STRUCTURED diagnosis (JSON)
   ├─ policy.py      reason -> authorized intervention (deterministic; no model)
   └─ serialization.py  config <-> JSON, validates on load
 ```
@@ -396,7 +417,7 @@ user clicks Cancel
       │  Interviewer(config, user).open()      # config.validate() runs here
       │  <- first question
   SDK  render modal, user replies
-      │  POST /sessions/:id/turn { user_message }   (repeat ≤3x)
+      │  POST /sessions/:id/turn { user_message }   (repeat ≤5x)
   API  interviewer.turn(reply)
       │    ├─ "ask"      -> next question  -> { message, done:false }
       │    └─ "diagnose" -> Outcome(reason, confidence, evidence, cover_story, ...)
@@ -452,7 +473,7 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 | `savable` | boolean | policy's judgment on whether a save is worth attempting |
 | `intervention_id` | string \| null | the authorized action's id, or null (fall back) |
 | `rationale` | string | human-readable "why this action" |
-| `turns_used` | number | questions it took (≤ 3) |
+| `turns_used` | number | questions it took (≤ 5) |
 | `mode` | string | `defer` \| `suggest` \| `act` — whether the offer is cleared to auto-apply or should be recommended for review ([DECISIONING.md §2.2](DECISIONING.md)) |
 | `corroboration` | object | did the behavioral data back the diagnosis; the confidence it adjusted to |
 | `economics` / `decision_trace` | object / array | the declared, auditable decision record |
@@ -489,6 +510,7 @@ diagnosis.
 | `OFFBOARD_CONFIG_DIR` | — | load customers from JSON configs; else demo `pk_demo_acme` |
 | `OFFBOARD_RUNS_DIR` | `runs` | where the append-only data asset is written — point at a mounted volume in prod |
 | `OFFBOARD_REDIS_URL` | — | set to use the shared/durable session store (multi-instance / zero-downtime); else in-memory |
+| `OFFBOARD_ROOT_PATH` | `""` | serve under a path prefix behind a proxy (e.g. `/v1`); keep the SDK's base URL in sync |
 | `OFFBOARD_MODEL_TIMEOUT` | `30` | per-model-call timeout (seconds) |
 | `CHURN_MODEL` | `claude-sonnet-5` | the interviewer model |
 | `PORT` | `8000` | API port |
@@ -503,9 +525,11 @@ Deploying for real (topologies, volumes, the `signing_secret` rule, TLS): see
 - **Custom-taxonomy typing in the SDK.** `Reason` in `sdk/src/types.ts` is the default
   SaaS union. If a customer runs a custom taxonomy, treat `outcome.reason` as an opaque
   string on the client.
-- **Config admin endpoint.** Onboarding currently means dropping a validated JSON file in
-  `OFFBOARD_CONFIG_DIR`. A `POST /configs` (propose → validate → persist) would remove the
-  need for file access.
+- **Config admin endpoint (no hot-reload yet).** Onboarding is a server-side file drop:
+  `python -m onboarding.provision` writes a validated customer file into `OFFBOARD_CONFIG_DIR`
+  (see §4), which the registry loads **at boot** — so a new/edited customer needs a restart. A
+  `POST /configs` (propose → validate → persist → hot-register) would remove both the restart
+  and filesystem access; the seam (`config_from_dict` validation + registry) is already in place.
 - **Session store durability.** Both backends now exist: in-memory (default, single instance)
   and a shared/durable Redis store selected via `OFFBOARD_REDIS_URL` (multi-instance,
   zero-downtime deploys). See [DEPLOY.md](DEPLOY.md#session-state).

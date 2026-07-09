@@ -1,12 +1,11 @@
 # offboard (web SDK)
 
-Drop-in cancel-flow SDK. Renders the exit-interview modal, runs the ≤3-question
+Drop-in cancel-flow SDK. Renders the exit-interview modal, runs the brief (≤5-question)
 interview against the Offboard engine, and hands your app a structured `Outcome`.
 
-> **Status:** the package is complete and type-checks; it talks to the Offboard
-> session API (`POST /sessions`, `POST /sessions/:id/turn`). Those endpoints ship in
-> **Milestone 2**, so end-to-end runs go live once the engine API is deployed. The
-> public API, wire contract, and UI are stable now.
+> **Status:** stable. Install it, point it at your deployed Offboard engine (or the hosted
+> default), and it runs the full flow end to end. To stand up the engine, see
+> `docs/DEPLOY.md` in the engine repo.
 
 ## Install
 
@@ -20,7 +19,11 @@ npm install offboard
 import Offboard from "offboard";
 
 // Once, at startup.
-Offboard.init({ publicKey: "pk_live_..." });
+Offboard.init({
+  publicKey: "pk_live_...",
+  // apiBaseUrl defaults to the hosted engine; override for self-hosting / staging:
+  // apiBaseUrl: "https://offboard.your-domain.com",
+});
 
 // When the user clicks "Cancel subscription".
 cancelButton.addEventListener("click", () => {
@@ -72,6 +75,31 @@ function CancelButton({ user }) {
 
 `react` is an optional peer dependency — the core `offboard` import stays framework-free.
 
+## Match your app's look
+
+The widget renders a neutral, theme-aware (light/dark) surface by default. To make it look
+like *your* product, pass a `theme`. Colours are **raw HSL triples** — `"222 47% 11%"`, not
+`#hex` or `hsl(...)`.
+
+```js
+Offboard.showCancelFlow({
+  userId: "user_123",
+  theme: {
+    // If your app uses shadcn/ui CSS variables, inherit them automatically — colours AND
+    // radius, light and dark, with no further config:
+    adoptHostTokens: true,
+    // …or just set a brand accent (the primary CTA + send button):
+    accent: "222 47% 11%",
+  },
+  // …callbacks
+});
+```
+
+Precedence: explicit tokens (`accent`, `primary`, `background`, `radius`, …) **>**
+`adoptHostTokens` **>** the built-in neutral default. `adoptHostTokens` assumes classic
+HSL-triple shadcn tokens; on other setups set the tokens explicitly. Button and offer copy are
+overridable too: `justCancelLabel`, `acceptLabel`, `declineLabel`, `offerEyebrow`.
+
 ## Identity verification (required for paid offers)
 
 The cancel flow runs in the browser, so **anything the browser sends can be forged**. If a
@@ -101,7 +129,7 @@ ship a production cancel flow on an unsecured key.
 
 - **The "Just cancel" escape hatch is always rendered** (hard constraint #3). Someone
   who chooses to answer is telling the truth; someone cornered types anything to escape.
-- **The conversation is bounded** — the engine stops at 3 questions; the modal closes on
+- **The conversation is bounded** — the engine stops at 5 questions (usually fewer); the modal closes on
   the server's `done` signal.
 - **The model never authorizes anything.** `intervention_id` is chosen by deterministic
   server-side policy; the SDK just relays it.
