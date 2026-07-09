@@ -216,12 +216,13 @@ not yet built:
 - **`decline_to_spend` as a positive decision.** Today a `null` intervention can mean
   "below floor," "no match," or "EV ≤ 0." Separate *chose not to spend* (economics) from
   *nothing configured* (a config gap).
-- **Recalibrate from the data asset.** The realized-save signal is now captured
-  (`POST /sessions/:id/resolution` → `runs/resolutions.jsonl`, with `reason`,
-  `intervention_type`, `offered`, `accepted`). Still to build: a job that re-fits
-  `save_prior` / `type_effectiveness` from it and **proposes** updated priors for a human
-  to approve (suggest, don't auto-apply). Naive online fitting is biased — you only observe
-  offers you made — so pair it with the holdout arm below for causal signal.
+- **Recalibrate from the data asset.** *Shipped:* the realized-save signal is captured
+  (`POST /sessions/:id/resolution` → `runs/resolutions.jsonl`) and `learning.propose`
+  re-fits `save_prior` / `type_effectiveness` from it — a reviewable diff (`learning.report`),
+  applied only when a human approves (`learning.apply_proposal`); thin cells are gated, and
+  the report headlines the selection-bias caveat. *Next:* the **holdout arm** to de-bias it —
+  the estimates are observational (you only see offers you made), so large moves shouldn't be
+  trusted without randomized exploration.
 - **Holdout arm.** Randomly withhold/vary offers for a small %, declare the arm on each
   outcome, and measure *incremental* saves — so offer efficiency is a number, not a claim.
 - **Narration (safe LLM use).** An optional model call that *explains* an already-made

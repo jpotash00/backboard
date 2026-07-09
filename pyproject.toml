@@ -29,7 +29,7 @@ offboard-eval = "eval.run_eval:main"
 offboard-api = "api.app:run"
 
 [tool.hatch.build.targets.wheel]
-packages = ["engine", "eval", "api", "onboarding"]
+packages = ["engine", "eval", "api", "onboarding", "learning"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
