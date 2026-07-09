@@ -49,20 +49,36 @@ the data asset (below) and you're production-shippable for that scope.
 
 ### B. Multiple instances + Redis (real production)
 
-Set `OFFBOARD_REDIS_URL` and the app uses `RedisSessionStore`: sessions are persisted as JSON
-snapshots under a TTL and rehydrated on each request, so **any instance can resume a session
-another started**, and a redeploy doesn't drop in-flight interviews. Horizontal scaling and
-rolling deploys both work.
+Set `OFFBOARD_REDIS_URL` and **both** the session store and the rate limiter switch to their
+shared Redis backends: sessions are persisted as JSON snapshots under a TTL and rehydrated on
+each request, so **any instance can resume a session another started** and a redeploy doesn't
+drop in-flight interviews; and the per-key/per-IP rate limit becomes a single shared counter
+instead of one-per-process (a per-process limiter lets the effective limit scale to N× on N
+instances). Horizontal scaling and rolling deploys both work.
 
 ```
 OFFBOARD_REDIS_URL=redis://:password@my-redis-host:6379/0
 ```
 
-Install the optional backend: the image built from the provided `Dockerfile` already includes
-it (`pip install .[api,redis]`). If you build your own, install the `redis` extra.
+Nothing in the code changes — both backends are selected automatically from the env var and
+satisfy the same contracts. The image built from the provided `Dockerfile` already includes the
+`redis` extra (`pip install .[api,redis]`).
 
-Nothing else changes — the store is selected automatically from the env var, and both backends
-satisfy the same `create/get/save` contract.
+**Upgrade checklist (single-instance → Redis, no code changes):**
+
+1. `fly redis create` → copy the `redis://…` URL it prints. (Fly's managed Redis is Upstash;
+   check pricing — it may bill beyond the free trial.)
+2. `fly secrets set OFFBOARD_REDIS_URL=redis://…@…:6379`
+3. In `fly.toml`, raise `min_machines_running` (e.g. to `2`) to actually run multiple instances.
+   Leaving it at `1` still works — you just get durable sessions + zero-downtime deploys without
+   horizontal scale yet.
+4. `fly deploy`.
+5. Verify: `fly status` shows the expected machine count, and a session started against one
+   machine resumes cleanly (Redis is doing its job).
+
+**Caveat — Redis becomes a hard dependency.** If Redis is unreachable, the rate limiter fails
+*closed* (requests 500) rather than silently bypassing the limit. That's the safe choice, but it
+means your API's uptime is now tied to Redis's. Size/monitor it accordingly.
 
 ---
 

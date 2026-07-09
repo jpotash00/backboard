@@ -1,65 +1,43 @@
-# Fly.io deploy config for the Offboard engine API.
-# This is the "topology B (multiple instances + Redis)" shape from docs/DEPLOY.md.
+# fly.toml app configuration file generated for offboard on 2026-07-09T13:40:27-04:00
 #
-# Before first deploy, fill in <APP_NAME> and <REGION>, then:
-#   fly volumes create offboard_data --size 1 --region <REGION>
-#   fly redis create                                    # copy the redis:// URL
-#   fly secrets set \
-#     ANTHROPIC_API_KEY=sk-ant-... \
-#     OFFBOARD_REDIS_URL=redis://...@...:6379 \
-#     OFFBOARD_ADMIN_KEY=$(openssl rand -hex 24) \      # enables POST/GET /configs + /admin
-#     OFFBOARD_CONFIG_KEY=$(python -c "from api.crypto import generate_key; print(generate_key())") \
-#     OFFBOARD_LOG_PEPPER=$(openssl rand -hex 32)       # write-once; never rotate (breaks log joins)
-#   fly deploy
-# Put the per-customer config files on the volume (they hold signing secrets — never in git/image).
-# With OFFBOARD_CONFIG_KEY set, the signing_secret is encrypted at rest; provision via POST /configs
-# (encrypts automatically), or if you hand-place a file, run the one-shot migration afterwards:
-#   fly ssh console -C "mkdir -p /data/configs"
-#   cat configs/<customer>.json | fly ssh console -C "tee /data/configs/<customer>.json >/dev/null"
-#   fly ssh console -C "python -m onboarding.encrypt_configs /data/configs"   # encrypt at rest
-#   fly deploy   # restart so the registry loads it   (or use POST /configs for no-restart provisioning)
-# Retention: run the sweeper on a schedule (drops run partitions past OFFBOARD_RETENTION_DAYS):
-#   fly ssh console -C "python -m api.retention /data/runs"
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "offboard"
-primary_region = "iad"
+app = 'offboard'
+primary_region = 'iad'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  # Non-secret config only. Secrets go through `fly secrets set` (above), never here.
-  OFFBOARD_CONFIG_DIR = "/data/configs"
-  OFFBOARD_RUNS_DIR   = "/data/runs"
-  PORT                = "8000"
-  # Fly terminates TLS at its edge proxy, so the app's socket peer is that proxy, not the user.
-  # One trusted hop tells the per-IP rate limiter to read the real client from X-Forwarded-For;
-  # without it every request shares one IP bucket and the per-IP limit does nothing.
-  OFFBOARD_TRUSTED_PROXY_HOPS = "1"
+  OFFBOARD_CONFIG_DIR = '/data/configs'
+  OFFBOARD_RUNS_DIR = '/data/runs'
+  OFFBOARD_TRUSTED_PROXY_HOPS = '1'
+  PORT = '8000'
 
 [[mounts]]
-  source      = "offboard_data"
-  destination = "/data"
+  source = 'offboard_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 8000
-  force_https   = true
-  auto_stop_machines  = false   # keep 1 always-on: in-flight cancel sessions live in Redis, but
-  auto_start_machines = true    # a cold start mid-interview still adds latency to a live user.
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type       = "requests"
-    soft_limit = 40
+    type = 'requests'
     hard_limit = 60
+    soft_limit = 40
 
-[[http_service.checks]]
-  method   = "get"
-  path     = "/health"
-  interval = "15s"
-  timeout  = "3s"
-  grace_period = "10s"
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '3s'
+    grace_period = '10s'
+    method = 'get'
+    path = '/health'
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
