@@ -35,11 +35,21 @@ def load_customer_file(path: Union[str, Path]) -> Customer:
 
 
 def registry_from_dir(config_dir: Union[str, Path]) -> CustomerRegistry:
-    """Build a registry from every *.json in a directory. Fails fast on a bad file."""
+    """Build a registry from every *.json in a directory. A present-but-broken file still fails
+    fast (below); but an EMPTY or absent dir is a valid cold start -- a fresh deploy on a new
+    volume has no configs yet -- so we boot with an empty registry rather than crash-looping the
+    machine. Customers are then added at runtime via POST /configs (the no-restart provisioning
+    path), or by dropping a file and restarting."""
     reg = CustomerRegistry()
-    files = sorted(Path(config_dir).glob("*.json"))
+    d = Path(config_dir)
+    files = sorted(d.glob("*.json")) if d.exists() else []
     if not files:
-        raise FileNotFoundError(f"no *.json customer configs found in {config_dir}")
+        print(
+            f"WARNING: no *.json customer configs in {config_dir}; starting with an EMPTY "
+            "registry. Provision via POST /configs (needs OFFBOARD_ADMIN_KEY) or add a config "
+            "file and restart. Until then every publishable key returns 401."
+        )
+        return reg
     for path in files:
         reg.register(load_customer_file(path))
     return reg

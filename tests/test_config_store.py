@@ -39,9 +39,17 @@ def test_registry_from_dir_loads_all(tmp_path):
     assert reg.get_by_key("pk_missing") is None
 
 
-def test_empty_dir_fails_loudly(tmp_path):
-    with pytest.raises(FileNotFoundError):
-        registry_from_dir(tmp_path)
+def test_empty_dir_boots_empty_not_crash(tmp_path, capsys):
+    # A fresh deploy on a new volume has no configs yet -- boot with an empty registry (and warn)
+    # rather than crash-loop the machine. Customers get added at runtime via POST /configs.
+    reg = registry_from_dir(tmp_path)
+    assert reg.customers() == []
+    assert "EMPTY" in capsys.readouterr().out
+
+
+def test_absent_dir_boots_empty(tmp_path):
+    reg = registry_from_dir(tmp_path / "does-not-exist")
+    assert reg.customers() == []
 
 
 def test_broken_json_fails_at_load(tmp_path):
