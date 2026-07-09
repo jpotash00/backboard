@@ -35,6 +35,12 @@ class ProvisionError(Exception):
     """The spec is missing something required, or the resulting config is invalid."""
 
 
+def _generate_public_key() -> str:
+    """A random publishable key: `pk_live_` + 32 hex chars. Public by design (ships in the
+    browser); random only so keys are unique and the customer roster isn't guessable."""
+    return "pk_live_" + secrets.token_hex(16)
+
+
 REQUIRED_PRODUCT_FIELDS = (
     "product_name", "product_context", "activation_definition", "pricing_summary",
 )
@@ -63,9 +69,12 @@ def build_record(spec: dict, *, signing_secret: Optional[str] = None) -> dict:
     Everything else -- reasons, policy, scoring, corroboration, experiment -- is left at the
     validated defaults. Returns the envelope; `config` is a JSON-safe ProductConfig dict.
     """
-    for key in ("customer_id", "public_key"):
-        if not spec.get(key):
-            raise ProvisionError(f"spec is missing required '{key}'")
+    if not spec.get("customer_id"):
+        raise ProvisionError("spec is missing required 'customer_id'")
+    # public_key is optional: mint a random `pk_live_...` when not supplied (like the
+    # signing_secret). It's public by design, so a random key just guarantees uniqueness and
+    # keeps the roster non-enumerable; a caller can still pin one for migration/testing.
+    public_key = spec.get("public_key") or _generate_public_key()
     product = spec.get("product") or {}
     missing = [f for f in REQUIRED_PRODUCT_FIELDS if not product.get(f)]
     if missing:
@@ -92,7 +101,7 @@ def build_record(spec: dict, *, signing_secret: Optional[str] = None) -> dict:
 
     return {
         "customer_id": str(spec["customer_id"]),
-        "public_key": str(spec["public_key"]),
+        "public_key": str(public_key),
         "signing_secret": signing_secret or secrets.token_hex(32),
         "allowed_origins": list(spec.get("allowed_origins", ())),
         "config": config_to_dict(config),

@@ -30,7 +30,11 @@ class ConfigSpecRequest(BaseModel):
     the signing_secret, fills taxonomy/policy from defaults, validates, persists, and
     hot-registers. The offer menu is declared, never inferred."""
     customer_id: str = Field(min_length=1, max_length=200)
-    public_key: str = Field(min_length=1, max_length=200)
+    # Optional: omit (or send blank) and the server mints a random `pk_live_...` key. A public
+    # key is public by design (it ships in the browser), so a random one just guarantees
+    # uniqueness and keeps the customer roster non-enumerable. Provide one only to pin a
+    # specific key (migration / testing).
+    public_key: Optional[str] = Field(default=None, max_length=200)
     product: ProductFacts
     offers: list[OfferSpec] = Field(min_length=1)
     allowed_origins: list[str] = Field(default_factory=list)

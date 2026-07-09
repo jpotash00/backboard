@@ -35,6 +35,32 @@ def _spec():
     }
 
 
+def test_public_key_is_auto_generated_when_omitted():
+    spec = _spec()
+    del spec["public_key"]
+    record = build_record(spec)
+    assert record["public_key"].startswith("pk_live_")
+    assert len(record["public_key"]) > len("pk_live_")  # has a random suffix
+
+
+def test_auto_generated_keys_are_unique():
+    a, b = _spec(), _spec()
+    del a["public_key"]
+    del b["public_key"]
+    assert build_record(a)["public_key"] != build_record(b)["public_key"]
+
+
+def test_supplied_public_key_is_respected():
+    record = build_record(_spec())  # _spec provides pk_live_acme
+    assert record["public_key"] == "pk_live_acme"
+
+
+def test_blank_public_key_is_treated_as_omitted():
+    spec = _spec()
+    spec["public_key"] = ""
+    assert build_record(spec)["public_key"].startswith("pk_live_")
+
+
 def test_minimal_spec_produces_a_complete_secure_envelope():
     record = build_record(_spec())
     # A secret is ALWAYS minted -- you can't accidentally ship a trust-the-browser tenant.
@@ -68,10 +94,11 @@ def test_empty_offer_menu_is_rejected():
         build_record(spec)
 
 
-def test_missing_identity_fields_are_rejected():
+def test_missing_customer_id_is_rejected():
+    # customer_id is the one required identity field; public_key auto-generates (tested above).
     spec = _spec()
-    del spec["public_key"]
-    with pytest.raises(ProvisionError, match="public_key"):
+    del spec["customer_id"]
+    with pytest.raises(ProvisionError, match="customer_id"):
         build_record(spec)
 
 

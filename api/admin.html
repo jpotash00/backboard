@@ -95,7 +95,7 @@
       <h2>Provision a customer</h2>
       <div class="row">
         <div><label>customer_id <span class="hint">internal, immutable</span></label><input id="customer_id" placeholder="acme" /></div>
-        <div><label>public_key <span class="hint">pk_… , goes in their SDK</span></label><input id="public_key" placeholder="pk_live_acme" /></div>
+        <div><label>public_key <span class="hint">optional — blank to auto-generate; goes in their SDK</span></label><input id="public_key" placeholder="leave blank to auto-generate" /></div>
       </div>
       <label>product_name</label><input id="product_name" placeholder="Acme Analytics" />
       <label>product_context <span class="hint">one or two sentences: what it does, for whom</span></label>
@@ -214,7 +214,7 @@
     const offers = readOffers();
     const status = $("formStatus");
     status.className = "status";
-    if (!$("customer_id").value.trim() || !$("public_key").value.trim()) { status.className = "status err"; status.textContent = "customer_id and public_key are required"; return; }
+    if (!$("customer_id").value.trim()) { status.className = "status err"; status.textContent = "customer_id is required"; return; }
     if (!offers.length) { status.className = "status err"; status.textContent = "at least one offer is required"; return; }
     const spec = {
       customer_id: $("customer_id").value.trim(),
@@ -258,7 +258,12 @@
       el("code", { id: "secretVal", textContent: r.signing_secret }),
       el("button", { className: "ghost sm", textContent: "copy", onclick: () => navigator.clipboard.writeText(r.signing_secret) }),
     ]);
-    box.append(el("div", { style: "margin-top:10px", innerHTML: `public_key: <code>${r.public_key}</code>` }));
+    const keyRow = el("div", { className: "secret", style: "margin-top:10px" }, [
+      el("span", { textContent: "public_key: " }),
+      el("code", { textContent: r.public_key }),
+      el("button", { className: "ghost sm", textContent: "copy", onclick: () => navigator.clipboard.writeText(r.public_key) }),
+    ]);
+    box.append(keyRow);
     box.append(secretRow);
     box.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
