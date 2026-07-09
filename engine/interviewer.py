@@ -37,7 +37,7 @@ Competitors: {competitors}
 WHAT WE KNOW ABOUT THIS PERSON (they don't know you can see this)
 Plan: {plan} (${mrr}/mo) | Tenure: {tenure_days}d | Logins last 30d: {logins_last_30d}
 Activated: {activated}
-Usage: {usage_summary}
+Usage: {usage_summary}{signals}
 
 YOUR JOB
 Stated reasons are usually cover stories. "Too expensive" is the great lie of churn --
@@ -52,14 +52,7 @@ and human -- never corporate, never guilt-tripping, never try to talk them out o
 You are trying to understand, not to save. Earn the answer.
 
 TAXONOMY -- you must resolve to exactly one:
-  never_activated       -- signed up, never reached first value
-  value_ended           -- need genuinely finished (project done, left company, seasonal)
-  price_value_mismatch  -- got real value, doesn't justify cost
-  missing_capability    -- needed something we don't do
-  switched_competitor   -- someone else won them
-  product_quality       -- bugs, reliability, support failures
-  involuntary           -- payment failure, not a real churn decision
-  unknown               -- cannot resolve; be honest about this
+{taxonomy}
 
 OUTPUT -- respond with ONLY a JSON object, no markdown, no preamble:
 If you want to ask another question:
@@ -80,22 +73,31 @@ when you don't actually know."""
 
 class Interviewer:
     def __init__(self, config: ProductConfig, user: UserContext, client=None):
-        self.config = config
+        self.config = config.validate()
         self.user = user
         self.client = client or anthropic.Anthropic()
         self.messages: list[MessageParam] = []
         self.turns = 0
 
     def _system(self) -> str:
+        taxonomy = "\n".join(
+            f"  {r.id:<21} -- {r.description}" for r in self.config.reasons
+        )
+        sig = self.user.signals
+        signals = ("\nOther signals: " + ", ".join(f"{k}={v}" for k, v in sig.items())
+                   if sig else "")
         return SYSTEM.format(
             max_turns=MAX_TURNS,
+            taxonomy=taxonomy,
+            signals=signals,
             product_name=self.config.product_name,
             product_context=self.config.product_context,
             pricing_summary=self.config.pricing_summary,
             activation_definition=self.config.activation_definition,
             known_churn_reasons=", ".join(self.config.known_churn_reasons) or "none recorded",
             competitors=", ".join(self.config.competitors) or "none recorded",
-            **{k: v for k, v in asdict(self.user).items() if k != "user_id"},
+            # user_id is internal; signals is rendered above, not a raw format field.
+            **{k: v for k, v in asdict(self.user).items() if k not in ("user_id", "signals")},
         )
 
     def _call(self) -> dict:

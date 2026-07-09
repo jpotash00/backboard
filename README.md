@@ -107,8 +107,8 @@ anything else. **Read the transcripts** — where it got stuck is the product sp
 | `CHURN_MODEL` | `claude-sonnet-5` | the interviewer model |
 | `PERSONA_MODEL` | `claude-sonnet-5` | the roleplay-churner model |
 
-## Known follow-up (deferred to M2)
+## Integrating (SDK + API + per-company config)
 
-`engine/policy.py` evaluates the `eligible_when` rule via a sandboxed `eval()` — kept
-verbatim from the reference implementation for M1. Replace it with a real expression
-parser before it processes untrusted customer config in production.
+For how an engineer calls the SDK, runs the API, onboards a company via a
+`ProductConfig`, and how the whole thing is designed end to end, see
+**[docs/GUIDE.md](docs/GUIDE.md)**.

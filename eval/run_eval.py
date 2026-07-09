@@ -21,7 +21,7 @@ from typing import Optional
 
 import anthropic
 
-from engine import Interviewer, Outcome, decide, CONFIDENCE_FLOOR
+from engine import Interviewer, Outcome, decide
 from .configs import ACME
 from .personas import Persona, build_personas
 from .scoring import Result, baseline_reason, crux_split_ok, score
@@ -114,7 +114,8 @@ def print_transcript(persona: Persona, t: Transcript, r: Result) -> None:
 
 
 def print_summary(results: list[Result]) -> None:
-    s = score(results, CONFIDENCE_FLOOR)
+    floor = ACME.policy.confidence_floor
+    s = score(results, floor)
     crux = crux_split_ok(results)
 
     print("\n" + "#" * 78)
@@ -142,7 +143,7 @@ def print_summary(results: list[Result]) -> None:
     print(f"\n  calibration:  mean conf when RIGHT = {s.mean_conf_correct:.2f}   "
           f"when WRONG = {s.mean_conf_wrong:.2f}   "
           f"(gap {s.mean_conf_correct - s.mean_conf_wrong:+.2f}, want positive)")
-    print(f"                confident-and-wrong (conf >= {CONFIDENCE_FLOOR}): "
+    print(f"                confident-and-wrong (conf >= {floor}): "
           f"{s.confident_and_wrong}  (want 0 -- these are the dangerous ones)")
     print(f"  mean turns used: {s.mean_turns:.1f} / {3}")
 

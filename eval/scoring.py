@@ -28,7 +28,7 @@ class Result:
     persona_id: int
     hidden_reason: Reason
     cover_story: str
-    diagnosed_reason: Reason
+    diagnosed_reason: str      # a config reason id -- open string, not the fixed enum
     confidence: float
     turns_used: int
     intervention_type: Optional[str]      # the type policy landed on, or None

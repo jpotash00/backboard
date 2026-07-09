@@ -1,0 +1,134 @@
+{
+  "customer_id": "acme",
+  "public_key": "pk_demo_acme",
+  "config": {
+    "config_version": "1",
+    "product_name": "Acme Analytics",
+    "product_context": "Self-serve product analytics for small SaaS teams. Connect a data source, build dashboards, track activation and retention funnels.",
+    "activation_definition": "connected a data source and viewed at least one dashboard",
+    "pricing_summary": "$49/mo Starter (1 source, 10k events/mo), $199/mo Growth (unlimited sources, 1M events/mo)",
+    "known_churn_reasons": [
+      "signed up but never connected a data source",
+      "outgrew us and moved to Amplitude",
+      "hit Starter event limits and balked at the Growth price"
+    ],
+    "competitors": [
+      "Amplitude",
+      "Mixpanel",
+      "PostHog"
+    ],
+    "reasons": [
+      {
+        "id": "never_activated",
+        "description": "signed up, never reached first value"
+      },
+      {
+        "id": "value_ended",
+        "description": "need genuinely finished (project done, left company, seasonal)"
+      },
+      {
+        "id": "price_value_mismatch",
+        "description": "got real value, doesn't justify cost"
+      },
+      {
+        "id": "missing_capability",
+        "description": "needed something we don't do"
+      },
+      {
+        "id": "switched_competitor",
+        "description": "someone else won them"
+      },
+      {
+        "id": "product_quality",
+        "description": "bugs, reliability, support failures"
+      },
+      {
+        "id": "involuntary",
+        "description": "payment failure, not a real churn decision"
+      },
+      {
+        "id": "unknown",
+        "description": "cannot resolve; be honest about this"
+      }
+    ],
+    "interventions": [
+      {
+        "id": "discount_50_3mo",
+        "type": "discount",
+        "description": "50% off for 3 months",
+        "eligible_when": "reason == price_value_mismatch AND tenure > 90"
+      },
+      {
+        "id": "downgrade_starter",
+        "type": "downgrade",
+        "description": "Move down to the Starter plan",
+        "eligible_when": null
+      },
+      {
+        "id": "pause_3mo",
+        "type": "pause",
+        "description": "Pause the subscription for up to 3 months",
+        "eligible_when": null
+      },
+      {
+        "id": "setup_call_15m",
+        "type": "onboarding",
+        "description": "Free 15-minute setup call to connect your first data source",
+        "eligible_when": null
+      },
+      {
+        "id": "roadmap_notify",
+        "type": "roadmap",
+        "description": "Get notified the moment the feature you need ships",
+        "eligible_when": null
+      },
+      {
+        "id": "priority_support",
+        "type": "support",
+        "description": "Priority support with an engineer to fix outstanding issues",
+        "eligible_when": null
+      }
+    ],
+    "policy": {
+      "confidence_floor": 0.6,
+      "preferred": {
+        "never_activated": [
+          "onboarding",
+          "support",
+          "pause"
+        ],
+        "price_value_mismatch": [
+          "discount",
+          "downgrade",
+          "pause"
+        ],
+        "value_ended": [
+          "pause",
+          "none"
+        ],
+        "missing_capability": [
+          "roadmap",
+          "none"
+        ],
+        "switched_competitor": [
+          "discount",
+          "roadmap"
+        ],
+        "product_quality": [
+          "support",
+          "discount"
+        ],
+        "involuntary": [
+          "support"
+        ],
+        "unknown": []
+      },
+      "discount_reasons": [
+        "price_value_mismatch"
+      ],
+      "let_go_reasons": [
+        "value_ended"
+      ]
+    }
+  }
+}

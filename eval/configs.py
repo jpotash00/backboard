@@ -26,7 +26,7 @@ ACME = ProductConfig(
         Intervention(
             id="discount_50_3mo", type="discount",
             description="50% off for 3 months",
-            eligible_when="reason=price AND tenure>90",
+            eligible_when="reason == price_value_mismatch AND tenure > 90",
         ),
         Intervention(
             id="downgrade_starter", type="downgrade",

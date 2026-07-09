@@ -5,6 +5,7 @@ product": scrape pricing page + docs, propose config, approve in five minutes). 
 Milestone 2 it's an in-memory map seeded with one demo customer.
 """
 
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -35,6 +36,13 @@ class CustomerRegistry:
 
 
 def default_registry() -> CustomerRegistry:
+    """If OFFBOARD_CONFIG_DIR is set, load customers from stored JSON configs (the
+    production path). Otherwise seed the single in-code Acme demo customer."""
+    config_dir = os.getenv("OFFBOARD_CONFIG_DIR")
+    if config_dir:
+        from .config_store import registry_from_dir  # lazy: avoids an import cycle
+        return registry_from_dir(config_dir)
+
     reg = CustomerRegistry()
     reg.register(Customer(id="acme", public_key=DEMO_PUBLIC_KEY, config=ACME))
     return reg

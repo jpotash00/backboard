@@ -22,7 +22,8 @@ def make_user(**kw):
 
 
 FULL_MENU = [
-    Intervention("discount_50_3mo", "discount", "50% off 3mo", "reason=price AND tenure>90"),
+    Intervention("discount_50_3mo", "discount", "50% off 3mo",
+                 "reason == price_value_mismatch AND tenure > 90"),
     Intervention("downgrade_starter", "downgrade", "downgrade"),
     Intervention("pause_3mo", "pause", "pause 3 months"),
     Intervention("setup_call_15m", "onboarding", "15-min setup call"),
