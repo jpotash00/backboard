@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offboard demo</title>
+  <style>
+    :root { --bg:#0f1115; --card:#171a21; --line:#252a34; --ink:#e7e9ee; --dim:#9aa2af;
+            --accent:#2f6fed; --good:#2ea34d; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+           background:var(--bg); color:var(--ink); min-height:100vh; }
+    .wrap { max-width:720px; margin:0 auto; padding:32px 20px 80px; }
+    h1 { font-size:20px; margin:0 0 4px; }
+    .sub { color:var(--dim); font-size:14px; margin:0 0 24px; }
+    .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+    .seg { display:flex; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .seg button { background:transparent; color:var(--dim); border:0; padding:8px 14px; font-size:14px; cursor:pointer; }
+    .seg button.on { background:var(--accent); color:#fff; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; }
+    .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 0; border-bottom:1px solid var(--line); }
+    .row:last-child { border-bottom:0; }
+    .muted { color:var(--dim); font-size:13px; }
+    .plan { font-weight:600; }
+    select { background:#0f1115; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; width:100%; }
+    .scenario-note { color:var(--dim); font-size:13px; margin-top:8px; line-height:1.5; }
+    .cancel { background:transparent; border:1px solid #6b3b3b; color:#e39; color:#f08; padding:10px 16px;
+              border-radius:10px; cursor:pointer; font-size:14px; }
+    .cancel { color:#ff7a90; border-color:#5a2a34; }
+    .cancel:hover { background:#2a1a1f; }
+    #result { display:none; }
+    #result.show { display:block; }
+    .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; }
+    .pill.reason { background:#22304a; color:#a9c4ff; }
+    .pill.cover { background:#3a2a1a; color:#f0c48a; }
+    .offer { background:#12251a; border:1px solid #1e4d33; border-radius:12px; padding:16px; margin-top:14px; }
+    .offer h3 { margin:0 0 6px; font-size:15px; color:var(--good); }
+    .kv { font-size:13px; color:var(--dim); margin:6px 0; }
+    .kv b { color:var(--ink); font-weight:600; }
+    .accept { background:var(--good); color:#fff; border:0; padding:9px 16px; border-radius:9px; cursor:pointer; font-size:14px; margin-top:10px; }
+    .none { background:#2a1f10; border:1px solid #5a4420; border-radius:12px; padding:14px; margin-top:14px; color:#f0c48a; font-size:14px; }
+    code { background:#0f1115; padding:2px 6px; border-radius:5px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Offboard — live demo</h1>
+    <p class="sub">A mock billing page. Pick a product and a user, hit <b>Cancel subscription</b>,
+      and play the churner. The interview runs against your local engine and returns the
+      diagnosis + the authorized offer.</p>
+
+    <div class="bar">
+      <div class="seg" id="product-seg">
+        <button data-product="acme" class="on">Acme Analytics</button>
+        <button data-product="zen">Zen (meditation)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div class="plan" id="acct-name">Acme Analytics</div>
+          <div class="muted" id="acct-plan">Growth · $199/mo</div>
+        </div>
+        <button class="cancel" id="cancel-btn">Cancel subscription</button>
+      </div>
+      <div style="padding-top:14px">
+        <label class="muted">Simulate this user (their behavioral data is sent to the engine):</label>
+        <select id="scenario"></select>
+        <div class="scenario-note" id="scenario-note"></div>
+      </div>
+    </div>
+
+    <div class="card" id="result">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+        <span class="muted">Diagnosis:</span>
+        <span class="pill reason" id="r-reason"></span>
+        <span class="muted">— they said:</span>
+        <span class="pill cover" id="r-cover"></span>
+      </div>
+      <div id="r-body"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import Offboard from "../sdk/dist/index.js";
+
+    const API_BASE = "http://localhost:8000";
+
+    // Preset users per product. `context` is the behavioral tell the engine sees.
+    const PRODUCTS = {
+      acme: {
+        name: "Acme Analytics", plan: "Growth · $199/mo", key: "pk_demo_acme",
+        scenarios: [
+          { id: "acme_never", label: "Signed up, never got going",
+            note: "The engine sees: never connected a data source, 2 logins in 60 days. Try opening with “too expensive.”",
+            context: { plan:"Starter", mrr:49, tenure_days:61, logins_last_30d:1, activated:false,
+              usage_summary:"Signed up 61 days ago. Never connected a data source. 2 logins total, none in 3 weeks." } },
+          { id: "acme_price", label: "Daily power user, watching cost",
+            note: "The engine sees: daily active 7 months, constantly hitting the plan's event cap. Try “too expensive.”",
+            context: { plan:"Starter", mrr:49, tenure_days:210, logins_last_30d:27, activated:true,
+              usage_summary:"Daily active for 7 months, 3 sources connected, constantly hitting the Starter 10k-event cap." } },
+          { id: "acme_ended", label: "Project wrapped up",
+            note: "The engine sees: heavy use then a cliff to zero 3 weeks ago. Try “not using it anymore.”",
+            context: { plan:"Growth", mrr:199, tenure_days:320, logins_last_30d:1, activated:true,
+              usage_summary:"Heavy daily use for months, then a sharp cliff to near-zero 3 weeks ago." } },
+        ],
+      },
+      zen: {
+        name: "Zen", plan: "Annual · $69.99/yr", key: "pk_demo_zen",
+        scenarios: [
+          { id: "zen_habit", label: "Never built the habit",
+            note: "The engine sees: 1 session ever, hasn't opened it in weeks. Try “too expensive.”",
+            context: { plan:"Annual", mrr:5.83, tenure_days:45, logins_last_30d:0, activated:false,
+              usage_summary:"Signed up 6 weeks ago in a motivated moment, completed 1 session, hasn't opened it since." } },
+          { id: "zen_price", label: "Regular meditator, price-sensitive",
+            note: "The engine sees: meditates most mornings for months. Try “it’s gotten too pricey.”",
+            context: { plan:"Annual", mrr:5.83, tenure_days:200, logins_last_30d:22, activated:true,
+              usage_summary:"Meditates most mornings for months; recently said the annual price is a stretch." } },
+          { id: "zen_goal", label: "Sleeping fine now",
+            note: "The engine sees: nightly use for two months, now rarely opens it. Try “not using it.”",
+            context: { plan:"Annual", mrr:5.83, tenure_days:300, logins_last_30d:2, activated:true,
+              usage_summary:"Used it nightly for sleep for two months, now sleeping fine and rarely opens it." } },
+        ],
+      },
+    };
+
+    let currentProduct = "acme";
+    const $ = (id) => document.getElementById(id);
+
+    function renderProduct() {
+      const p = PRODUCTS[currentProduct];
+      $("acct-name").textContent = p.name;
+      $("acct-plan").textContent = p.plan;
+      $("scenario").innerHTML = p.scenarios
+        .map((s, i) => `<option value="${i}">${s.label}</option>`).join("");
+      updateNote();
+      $("result").classList.remove("show");
+      Offboard.init({ publicKey: p.key, apiBaseUrl: API_BASE });
+    }
+
+    function updateNote() {
+      const p = PRODUCTS[currentProduct];
+      $("scenario-note").textContent = p.scenarios[+$("scenario").value].note;
+    }
+
+    $("product-seg").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-product]");
+      if (!btn) return;
+      currentProduct = btn.dataset.product;
+      [...$("product-seg").children].forEach((b) => b.classList.toggle("on", b === btn));
+      renderProduct();
+    });
+    $("scenario").addEventListener("change", updateNote);
+
+    $("cancel-btn").addEventListener("click", () => {
+      const p = PRODUCTS[currentProduct];
+      const s = p.scenarios[+$("scenario").value];
+      $("result").classList.remove("show");
+      Offboard.showCancelFlow({
+        userId: s.id,
+        context: s.context,
+        onResolved: (outcome) => renderResult(outcome),
+        onJustCancel: () => renderCancelled(),
+      });
+    });
+
+    function renderResult(o) {
+      $("r-reason").textContent = o.reason;
+      $("r-cover").textContent = o.cover_story;
+      const conf = Math.round(o.confidence * 100);
+      let html = `
+        <div class="kv" style="margin-top:12px"><b>Confidence:</b> ${conf}% ·
+          <b>Turns:</b> ${o.turns_used} · <b>Savable:</b> ${o.savable}</div>
+        <div class="kv"><b>Evidence:</b> ${escapeHtml(o.evidence)}</div>`;
+      if (o.intervention) {
+        html += `
+          <div class="offer">
+            <h3>Authorized offer → ${o.intervention.type}</h3>
+            <div class="kv"><b>${escapeHtml(o.intervention.description)}</b></div>
+            <div class="kv" style="margin-top:8px">${escapeHtml(o.rationale)}</div>
+            <button class="accept">Accept offer</button>
+          </div>`;
+      } else {
+        html += `<div class="none">No offer authorized — falling back to the normal
+          cancel flow. <div class="kv" style="margin-top:6px">${escapeHtml(o.rationale)}</div></div>`;
+      }
+      $("r-body").innerHTML = html;
+      $("result").classList.add("show");
+      $("result").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function renderCancelled() {
+      $("r-reason").textContent = "just_cancel";
+      $("r-cover").textContent = "escape hatch";
+      $("r-body").innerHTML = `<div class="none" style="margin-top:12px">The user tapped
+        <code>Just cancel</code> — no diagnosis, no offer. Subscription cancelled cleanly.</div>`;
+      $("result").classList.add("show");
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"]/g, (c) =>
+        ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+    }
+
+    renderProduct();
+  </script>
+</body>
+</html>

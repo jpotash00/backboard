@@ -1,0 +1,126 @@
+{
+  "customer_id": "zen",
+  "public_key": "pk_demo_zen",
+  "config": {
+    "config_version": "1",
+    "product_name": "Zen",
+    "product_context": "A meditation & sleep app: guided sessions, sleep stories, and breathing exercises to build a calmer daily habit.",
+    "activation_definition": "completed at least 3 guided sessions",
+    "pricing_summary": "$12.99/mo or $69.99/yr",
+    "known_churn_reasons": [
+      "signed up in a motivated moment, never built the habit",
+      "reached their goal (sleeping better) and moved on",
+      "left for Calm or Headspace"
+    ],
+    "competitors": [
+      "Calm",
+      "Headspace",
+      "Insight Timer"
+    ],
+    "reasons": [
+      {
+        "id": "habit_never_formed",
+        "description": "signed up, never built a session habit / never reached first calm"
+      },
+      {
+        "id": "goal_reached",
+        "description": "got what they came for (sleep, a calmer stretch) -- the need genuinely ended"
+      },
+      {
+        "id": "price_value_mismatch",
+        "description": "meditates regularly and values it, but the price no longer justifies it"
+      },
+      {
+        "id": "missing_content",
+        "description": "wanted content or a feature we don't offer (a program, a language, a teacher)"
+      },
+      {
+        "id": "switched_app",
+        "description": "moved to another meditation app"
+      },
+      {
+        "id": "app_problems",
+        "description": "bugs, audio cutting out, crashes, sync failures"
+      },
+      {
+        "id": "involuntary",
+        "description": "payment failure, not a real decision to leave"
+      },
+      {
+        "id": "unknown",
+        "description": "cannot resolve; be honest about this"
+      }
+    ],
+    "interventions": [
+      {
+        "id": "discount_annual_40",
+        "type": "discount",
+        "description": "40% off the annual plan",
+        "eligible_when": "reason == price_value_mismatch AND tenure > 30"
+      },
+      {
+        "id": "pause_1mo",
+        "type": "pause",
+        "description": "Pause your membership for a month",
+        "eligible_when": null
+      },
+      {
+        "id": "guided_start_week",
+        "type": "onboarding",
+        "description": "A guided 7-day starter program with daily reminders",
+        "eligible_when": null
+      },
+      {
+        "id": "content_roadmap",
+        "type": "roadmap",
+        "description": "Get notified when the program or teacher you want arrives",
+        "eligible_when": null
+      },
+      {
+        "id": "priority_support",
+        "type": "support",
+        "description": "Priority support to fix the playback/sync issues",
+        "eligible_when": null
+      }
+    ],
+    "policy": {
+      "confidence_floor": 0.6,
+      "preferred": {
+        "habit_never_formed": [
+          "onboarding",
+          "support",
+          "pause"
+        ],
+        "goal_reached": [
+          "pause",
+          "none"
+        ],
+        "price_value_mismatch": [
+          "discount",
+          "pause"
+        ],
+        "missing_content": [
+          "roadmap",
+          "none"
+        ],
+        "switched_app": [
+          "discount",
+          "roadmap"
+        ],
+        "app_problems": [
+          "support"
+        ],
+        "involuntary": [
+          "support"
+        ],
+        "unknown": []
+      },
+      "discount_reasons": [
+        "price_value_mismatch"
+      ],
+      "let_go_reasons": [
+        "goal_reached"
+      ]
+    }
+  }
+}

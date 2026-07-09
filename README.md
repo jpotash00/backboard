@@ -78,6 +78,15 @@ curl -s localhost:8000/sessions/<session_id>/turn -H "Authorization: Bearer pk_d
 
 Every completed session is appended to `runs/sessions.jsonl` (transcript + outcome).
 
+## Try it in a browser (the full loop)
+
+A clickable mock billing page that runs the real SDK against the real engine —
+cancel → in-flow interview → diagnosis → authorized offer — and toggles between two
+completely different products (SaaS analytics and a meditation app) to show the pipeline
+is entirely config-driven. See **[demo/README.md](demo/README.md)** to run it. Start the
+API with `OFFBOARD_CONFIG_DIR=configs` so both demo customers (`pk_demo_acme`,
+`pk_demo_zen`) load.
+
 ## Run the tests (no API key required)
 
 ```bash

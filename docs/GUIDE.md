@@ -66,6 +66,8 @@ cancelButton.addEventListener("click", () => {
       logins_last_30d: 27,
       activated: true,
       usage_summary: "Daily active; repeatedly hitting the event cap.",
+      // Product-specific tells that don't fit the fixed fields:
+      signals: { events_this_month: 42000, seats_used: 3 },
     },
 
     // Called once the interview resolves.
@@ -79,16 +81,26 @@ cancelButton.addEventListener("click", () => {
 
 ### Act on the `Outcome`
 
+`onResolved` receives a **`ResolvedOutcome`** — the `Outcome` plus a resolved
+`intervention` object (`{ id, type, description }`), so you can render the offer directly
+without re-fetching your config. It's `null` when policy authorized nothing.
+
 ```js
 function applyIntervention(outcome) {
-  // intervention_id is null when confidence < floor (default 0.6) OR no authorized
-  // action fits — that's the signal to fall back to your generic cancel flow.
-  if (!outcome.intervention_id) {
+  // intervention is null when confidence < floor (default 0.6) OR no authorized action
+  // fits — that's the signal to fall back to your generic cancel flow.
+  if (!outcome.intervention) {
     completeCancellation();
     return;
   }
 
-  switch (outcome.intervention_id) {
+  // The offer is spelled out — render it straight from the outcome, no config lookup:
+  //   outcome.intervention.type         "discount" | "onboarding" | "pause" | ...
+  //   outcome.intervention.description  "50% off for 3 months"  (ready to show the user)
+  showOffer(outcome.intervention.description);
+
+  // Or branch on the specific action when the handling differs per offer:
+  switch (outcome.intervention.id) {
     case "discount_50_3mo":  return offerDiscount();
     case "setup_call_15m":   return bookOnboardingCall();
     case "pause_3mo":        return offerPause();
@@ -96,19 +108,21 @@ function applyIntervention(outcome) {
     default:                 return completeCancellation();
   }
 
-  // Everything you need for analytics is on the outcome:
+  // Everything you need for analytics is on the outcome too:
   //   outcome.reason        the real reason        ("never_activated")
   //   outcome.cover_story   what they said first   ("too_expensive")
-  //   outcome.confidence    0..1                   (< floor => intervention_id is null)
+  //   outcome.confidence    0..1                   (< floor => intervention is null)
   //   outcome.savable       policy's judgment on whether a save is worth attempting
   //   outcome.rationale     human-readable "why this action"
   //   outcome.turns_used    how many questions it took
 }
 ```
 
-> **Route on `intervention_id`, not on `reason`.** The reason is a diagnosis; the
+> **Route on the intervention, not on `reason`.** The reason is a diagnosis; the
 > intervention is the authorized action. Two customers can map the same reason to
-> different actions, and low-confidence diagnoses deliberately yield `null`.
+> different actions, and low-confidence diagnoses deliberately yield a `null` intervention.
+> (`outcome.intervention_id` — the bare id — is still present for convenience;
+> `outcome.intervention` is that same action spelled out.)
 
 ### React
 
@@ -118,7 +132,7 @@ function CancelButton({ user }) {
     Offboard.showCancelFlow({
       userId: user.id,
       context: { plan: user.plan, mrr: user.mrr, activated: user.activated },
-      onResolved: (o) => (o.intervention_id ? presentOffer(o) : router.push("/cancel/confirm")),
+      onResolved: (o) => (o.intervention ? presentOffer(o) : router.push("/cancel/confirm")),
       onJustCancel: () => router.push("/cancel/confirm"),
     });
   return <button onClick={onClick}>Cancel subscription</button>;
@@ -144,10 +158,12 @@ while (!res.done) {
   // show res.message, collect the next reply
   res = await client.turn(session_id, nextReply);
 }
-console.log(res.outcome); // the Outcome
+console.log(res.outcome);       // the Outcome (reason, cover_story, confidence, ...)
+console.log(res.intervention);  // the resolved offer { id, type, description } | null
 ```
 
-The `Outcome` shape is identical whether you use the modal or go headless.
+The turn response carries both `outcome` and the resolved `intervention`. (The modal
+merges them into the single `ResolvedOutcome` it passes to `onResolved`.)
 
 ---
 
@@ -176,7 +192,7 @@ key `pk_demo_acme` is seeded; point at real configs with `OFFBOARD_CONFIG_DIR` (
 |---|---|---|
 | `GET /health` | — | `{ "status": "ok" }` |
 | `POST /sessions` | `UserContext` (only `user_id` required) | `{ session_id, message }` |
-| `POST /sessions/{id}/turn` | `{ user_message }` | `{ message, done }` **or** `{ done: true, outcome }` |
+| `POST /sessions/{id}/turn` | `{ user_message }` | `{ message, done }` **or** `{ done: true, outcome, intervention }` |
 
 The turn endpoint is **idempotent** once resolved: calling it again on a finished session
 replays the stored outcome rather than re-diagnosing.
@@ -409,7 +425,9 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 ### `UserContext` / `POST /sessions` body
 
 `user_id` (required), `plan`, `mrr`, `tenure_days`, `logins_last_30d`, `activated`,
-`usage_summary`. Richer context ⇒ sharper diagnosis.
+`usage_summary`, and `signals` (a free-form object of product-specific tells, e.g.
+`{ "seats_used": 7 }`, rendered into the interviewer's context). Richer context ⇒ sharper
+diagnosis.
 
 ### Environment variables
 
@@ -427,9 +445,6 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 - **Custom-taxonomy typing in the SDK.** `Reason` in `sdk/src/types.ts` is the default
   SaaS union. If a customer runs a custom taxonomy, treat `outcome.reason` as an opaque
   string on the client.
-- **`signals` over HTTP.** `UserContext.signals` is supported in the engine and rendered
-  into the prompt, but `api/schemas.py:CreateSessionRequest` only maps the fixed fields —
-  add a `signals` field there to pass product-specific tells through the API.
 - **Config admin endpoint.** Onboarding currently means dropping a validated JSON file in
   `OFFBOARD_CONFIG_DIR`. A `POST /configs` (propose → validate → persist) would remove the
   need for file access.

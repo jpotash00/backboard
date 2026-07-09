@@ -1,7 +1,7 @@
 """Request/response models for the session API (§4). These are the wire contract;
 they mirror `engine.taxonomy.Outcome` and the SDK's `src/types.ts`."""
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,9 @@ class CreateSessionRequest(BaseModel):
     logins_last_30d: int = 0
     activated: bool = False
     usage_summary: str = ""
+    # Product-specific behavioral tells that don't fit the fixed fields
+    # (e.g. {"seats_used": 7}); rendered into the interviewer's context.
+    signals: dict[str, Any] = Field(default_factory=dict)
 
 
 class CreateSessionResponse(BaseModel):
@@ -39,7 +42,16 @@ class OutcomeModel(BaseModel):
     turns_used: int
 
 
+class InterventionModel(BaseModel):
+    """The resolved offer, so the host can render it without re-fetching config.
+    `outcome.intervention_id` is the id; this is that intervention, spelled out."""
+    id: str
+    type: str
+    description: str
+
+
 class TurnResponse(BaseModel):
     message: Optional[str] = None
     done: bool
     outcome: Optional[OutcomeModel] = None
+    intervention: Optional[InterventionModel] = None

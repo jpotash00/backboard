@@ -81,6 +81,9 @@ def test_full_session_never_activated_gets_onboarding(tmp_path):
     assert out["cover_story"] == "too_expensive"
     # Policy — not the model — picks onboarding, and NEVER a discount here.
     assert out["intervention_id"] == "setup_call_15m"
+    # The offer is resolved so the host can render it without re-fetching config.
+    assert body["intervention"]["type"] == "onboarding"
+    assert "setup call" in body["intervention"]["description"].lower()
 
     # Transcript logged for the data asset.
     log = (tmp_path / "sessions.jsonl").read_text().strip()
@@ -104,7 +107,8 @@ def test_multi_turn_then_diagnose(tmp_path):
     sid = client.post("/sessions", json={"user_id": "u2", "activated": True,
                                          "tenure_days": 200}, headers=AUTH).json()["session_id"]
     r1 = client.post(f"/sessions/{sid}/turn", json={"user_message": "too pricey"}, headers=AUTH)
-    assert r1.json() == {"message": "Q1?", "done": False, "outcome": None}
+    assert r1.json() == {"message": "Q1?", "done": False, "outcome": None,
+                         "intervention": None}
     r2 = client.post(f"/sessions/{sid}/turn", json={"user_message": "yeah the caps"}, headers=AUTH)
     assert r2.json()["done"] is True
     assert r2.json()["outcome"]["intervention_id"] == "discount_50_3mo"
@@ -122,6 +126,32 @@ def test_resolved_session_replays_outcome_idempotently(tmp_path):
     again = client.post(f"/sessions/{sid}/turn", json={"user_message": "hello?"}, headers=AUTH)
     assert first.json()["outcome"] == again.json()["outcome"]
     assert again.json()["done"] is True
+
+
+def test_signals_reach_the_interviewer_prompt(tmp_path):
+    """Product-specific signals in the POST body must render into the model's context."""
+    seen = {}
+
+    class CapturingClient:
+        @property
+        def messages(self):
+            class _M:
+                def create(self, **kw):
+                    seen["system"] = kw.get("system", "")
+                    return _Resp(content=[_Block(text=json.dumps(
+                        {"action": "ask", "message": "hi?"}))])
+            return _M()
+
+    app = create_app(
+        store=SessionStore(),
+        logger=TranscriptLogger(directory=str(tmp_path)),
+        client_factory=lambda: CapturingClient(),
+    )
+    client = TestClient(app)
+    r = client.post("/sessions", json={"user_id": "u", "signals": {"seats_used": 7}},
+                    headers=AUTH)
+    assert r.status_code == 200
+    assert "seats_used=7" in seen["system"]
 
 
 def test_health_needs_no_auth(tmp_path):

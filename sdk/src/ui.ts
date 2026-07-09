@@ -122,7 +122,10 @@ export class CancelFlowModal {
       if (res.message) this.appendBot(res.message);
       if (res.done && res.outcome) {
         this.close();
-        this.opts.onResolved(res.outcome);
+        this.opts.onResolved({
+          ...res.outcome,
+          intervention: res.intervention ?? null,
+        });
         return;
       }
     } catch (err) {

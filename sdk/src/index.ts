@@ -57,8 +57,10 @@ export { OffboardApiError } from "./client.js";
 export type {
   CoverStory,
   InitOptions,
+  Intervention,
   Outcome,
   Reason,
+  ResolvedOutcome,
   SessionOpenResponse,
   SessionTurnResponse,
   ShowCancelFlowOptions,

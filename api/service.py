@@ -15,6 +15,7 @@ from .registry import Customer
 from .schemas import (
     CreateSessionRequest,
     CreateSessionResponse,
+    InterventionModel,
     OutcomeModel,
     TurnRequest,
     TurnResponse,
@@ -67,6 +68,7 @@ def run_turn(
             message=state.closing_message,
             done=True,
             outcome=OutcomeModel(**asdict(state.outcome)),
+            intervention=_resolve_intervention(state, state.outcome.intervention_id),
         )
 
     state.transcript.append({"speaker": "churner", "text": req.user_message})
@@ -93,7 +95,19 @@ def run_turn(
         message=closing,
         done=True,
         outcome=OutcomeModel(**asdict(final)),
+        intervention=_resolve_intervention(state, final.intervention_id),
     )
+
+
+def _resolve_intervention(state: SessionState, intervention_id):
+    """Spell out the authorized intervention so the host can render the offer directly.
+    None when policy authorized nothing (below floor, let-go, or no match)."""
+    if not intervention_id:
+        return None
+    iv = next((i for i in state.config.interventions if i.id == intervention_id), None)
+    if iv is None:
+        return None
+    return InterventionModel(id=iv.id, type=iv.type, description=iv.description)
 
 
 def req_to_user(req: CreateSessionRequest):
@@ -107,6 +121,7 @@ def req_to_user(req: CreateSessionRequest):
         logins_last_30d=req.logins_last_30d,
         activated=req.activated,
         usage_summary=req.usage_summary,
+        signals=req.signals,
     )
 
 
