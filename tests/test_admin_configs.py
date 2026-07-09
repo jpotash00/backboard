@@ -147,3 +147,40 @@ def test_missing_product_fact_is_422(tmp_path):
     spec = _spec()
     del spec["product"]["activation_definition"]
     assert client.post("/configs", json=spec, headers=_admin()).status_code == 422
+
+
+# --- GET /configs (admin roster for the console) ---
+
+def test_list_configs_requires_admin(tmp_path):
+    client = _app(tmp_path)
+    assert client.get("/configs").status_code == 401                       # no header
+    assert client.get("/configs", headers=_admin("nope")).status_code == 401
+    # A publishable key must not read the roster either.
+    assert client.get("/configs", headers={"Authorization": "Bearer pk_demo_acme"}).status_code == 401
+
+
+def test_list_configs_summarizes_without_leaking_secret(tmp_path):
+    client = _app(tmp_path)
+    client.post("/configs", json=_spec(), headers=_admin())
+    rows = client.get("/configs", headers=_admin()).json()["customers"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["customer_id"] == "acme"
+    assert row["public_key"] == "pk_live_acme"
+    assert row["offers"] == 2
+    assert row["has_signing_secret"] is True               # provisioned tenants are signed-mode
+    assert "signing_secret" not in row                     # never exposed by the read surface
+
+
+def test_list_configs_disabled_without_admin_key(tmp_path):
+    client = _app(tmp_path, admin_key=None)
+    assert client.get("/configs", headers=_admin()).status_code == 404
+
+
+def test_admin_console_page_served_only_when_enabled(tmp_path):
+    on = _app(tmp_path)
+    page = on.get("/admin")
+    assert page.status_code == 200
+    assert "text/html" in page.headers["content-type"]
+    off = _app(tmp_path, admin_key=None)
+    assert off.get("/admin").status_code == 404

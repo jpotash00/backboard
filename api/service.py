@@ -66,6 +66,24 @@ def create_customer_from_spec(spec: dict, registry, config_dir: str) -> dict:
     return record
 
 
+def list_customers(registry) -> list[dict]:
+    """Admin read: a non-secret summary of every provisioned customer, for the /admin console.
+    Deliberately omits `signing_secret` -- it's shown once at creation and never recoverable
+    here. `has_signing_secret` is enough for the operator to confirm a tenant isn't stuck in
+    trust-the-browser mode without exposing the secret itself."""
+    rows = []
+    for c in registry.customers():
+        rows.append({
+            "customer_id": c.id,
+            "public_key": c.public_key,
+            "product_name": c.config.product_name,
+            "offers": len(c.config.interventions),
+            "has_signing_secret": bool(c.signing_secret),
+            "allowed_origins": list(c.allowed_origins),
+        })
+    return sorted(rows, key=lambda r: r["customer_id"])
+
+
 def start_session(
     store: SessionStore,
     client,

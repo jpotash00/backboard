@@ -47,6 +47,11 @@ class CustomerRegistry:
         carries only `customer_id`, and rehydrating it must re-attach that customer's config."""
         return next((c for c in self._by_key.values() if c.id == customer_id), None)
 
+    def customers(self) -> list[Customer]:
+        """Every registered customer. For the admin read surface (GET /configs) -- callers must
+        summarize, never leak `signing_secret`."""
+        return list(self._by_key.values())
+
 
 def default_registry() -> CustomerRegistry:
     """If OFFBOARD_CONFIG_DIR is set, load customers from stored JSON configs (the

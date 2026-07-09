@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Offboard · Admin</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #ffffff; --fg: #18181b; --muted: #71717a;
+    --border: #e4e4e7; --accent: #18181b; --accent-fg: #ffffff;
+    --ok: #16794a; --ok-bg: #e7f6ee; --err: #b4231f; --err-bg: #fbeaea;
+    --radius: 0.65rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #09090b; --panel: #18181b; --fg: #fafafa; --muted: #a1a1aa;
+      --border: #27272a; --accent: #fafafa; --accent-fg: #09090b;
+      --ok: #4ade80; --ok-bg: #0f2c1e; --err: #f87171; --err-bg: #2c1414;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 5px; }
+  label:first-child { margin-top: 0; }
+  .hint { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  input, textarea, select {
+    width: 100%; padding: 9px 11px; font: inherit; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { resize: vertical; min-height: 58px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .offer { display: grid; grid-template-columns: 160px 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg);
+    padding: 9px 16px;
+  }
+  button.ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+  button.sm { padding: 6px 10px; font-size: 13px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .actions { margin-top: 20px; display: flex; gap: 10px; align-items: center; }
+  .status { font-size: 13px; }
+  .status.err { color: var(--err); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); }
+  .pill.warn { color: var(--err); border-color: var(--err); }
+  .banner { border-radius: var(--radius); padding: 16px; margin-bottom: 20px; font-size: 14px; }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .banner.err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner code { color: inherit; font-weight: 700; }
+  .secret { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .secret code { flex: 1; background: rgba(0,0,0,0.06); padding: 8px 10px; border-radius: 6px; overflow-x: auto; white-space: nowrap; }
+  .hidden { display: none; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Offboard · Admin</h1>
+    <span id="conn" class="muted" style="font-size:13px">not connected</span>
+  </header>
+  <p class="sub">Provision a customer from the tiny spec — product facts + the authorized offer menu.
+  Taxonomy, policy and economics come from validated defaults; the server mints the signing secret and hot-loads the tenant with no restart.</p>
+
+  <!-- Token gate -->
+  <div class="panel" id="gate">
+    <h2>Admin token</h2>
+    <p class="sub" style="margin-bottom:12px">The secret <code>OFFBOARD_ADMIN_KEY</code>. Kept only in this tab, never persisted to disk.</p>
+    <div class="row" style="grid-template-columns:1fr auto">
+      <input id="token" type="password" placeholder="paste admin token" autocomplete="off" />
+      <button id="connect">Connect</button>
+    </div>
+    <p id="gateStatus" class="status err" style="margin-top:10px"></p>
+  </div>
+
+  <!-- Console (hidden until connected) -->
+  <div id="console" class="hidden">
+    <div id="result" class="banner ok hidden"></div>
+
+    <div class="panel">
+      <h2>Provision a customer</h2>
+      <div class="row">
+        <div><label>customer_id <span class="hint">internal, immutable</span></label><input id="customer_id" placeholder="acme" /></div>
+        <div><label>public_key <span class="hint">pk_… , goes in their SDK</span></label><input id="public_key" placeholder="pk_live_acme" /></div>
+      </div>
+      <label>product_name</label><input id="product_name" placeholder="Acme Analytics" />
+      <label>product_context <span class="hint">one or two sentences: what it does, for whom</span></label>
+      <textarea id="product_context" placeholder="Self-serve product analytics for small SaaS teams…"></textarea>
+      <label>activation_definition <span class="hint">what "activated" means here</span></label>
+      <input id="activation_definition" placeholder="connected a data source and viewed a dashboard" />
+      <label>pricing_summary</label>
+      <textarea id="pricing_summary" placeholder="$49/mo Starter (1 source), $199/mo Growth (unlimited)…"></textarea>
+      <div class="row">
+        <div><label>competitors <span class="hint">comma-separated, optional</span></label><input id="competitors" placeholder="Amplitude, Mixpanel" /></div>
+        <div><label>allowed_origins <span class="hint">comma-separated, optional</span></label><input id="allowed_origins" placeholder="https://app.acme.com" /></div>
+      </div>
+
+      <label style="margin-top:20px">Authorized offer menu <span class="hint">required — declared, never inferred</span></label>
+      <div id="offers"></div>
+      <button class="ghost sm" id="addOffer" type="button">+ add offer</button>
+
+      <div class="actions">
+        <button id="submit">Provision</button>
+        <span id="formStatus" class="status"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Provisioned customers</h2>
+      <div id="list"><p class="muted">loading…</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Common intervention types the default policy already ranks. Custom types are allowed by the
+  // API but won't be preferred for any reason until the policy references them — so Tier-1 sticks
+  // to the known set.
+  const OFFER_TYPES = ["discount", "downgrade", "pause", "onboarding", "support", "roadmap", "gift", "extend_trial", "none"];
+  let token = "";
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, props = {}, kids = []) => {
+    const n = Object.assign(document.createElement(tag), props);
+    for (const k of kids) n.append(k);
+    return n;
+  };
+
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { /* leave null */ }
+    if (!res.ok) throw { status: res.status, detail: (data && data.detail) || text || res.statusText };
+    return data;
+  }
+
+  // --- Offer rows ---
+  function addOfferRow(type = "discount", description = "") {
+    const sel = el("select");
+    for (const t of OFFER_TYPES) sel.append(el("option", { value: t, textContent: t, selected: t === type }));
+    const desc = el("input", { placeholder: "50% off for 3 months", value: description });
+    const del = el("button", { className: "ghost sm", type: "button", textContent: "×" });
+    const row = el("div", { className: "offer" }, [sel, desc, del]);
+    del.onclick = () => row.remove();
+    $("offers").append(row);
+  }
+  function readOffers() {
+    return [...$("offers").querySelectorAll(".offer")].map((r) => ({
+      type: r.querySelector("select").value,
+      description: r.querySelector("input").value.trim(),
+    })).filter((o) => o.description);
+  }
+  const csv = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean);
+
+  // --- Connect ---
+  async function connect() {
+    token = $("token").value.trim();
+    $("gateStatus").textContent = "";
+    if (!token) { $("gateStatus").textContent = "enter the admin token"; return; }
+    try {
+      await refreshList();               // doubles as a token check
+      $("gate").classList.add("hidden");
+      $("console").classList.remove("hidden");
+      $("conn").textContent = "connected";
+    } catch (e) {
+      $("gateStatus").textContent = e.status === 401 ? "invalid admin token"
+        : e.status === 404 ? "admin surface disabled (OFFBOARD_ADMIN_KEY not set)"
+        : `error: ${e.detail || e}`;
+      token = "";
+    }
+  }
+
+  // --- List ---
+  async function refreshList() {
+    const { customers } = await api("GET", "/configs");
+    const box = $("list");
+    box.innerHTML = "";
+    if (!customers.length) { box.append(el("p", { className: "muted", textContent: "none yet" })); return; }
+    const head = el("tr", {}, ["customer_id", "public_key", "product", "offers", "identity", "origins"].map((h) => el("th", { textContent: h })));
+    const rows = customers.map((c) => el("tr", {}, [
+      el("td", {}, [el("code", { textContent: c.customer_id })]),
+      el("td", {}, [el("code", { textContent: c.public_key })]),
+      el("td", { textContent: c.product_name }),
+      el("td", { textContent: String(c.offers) }),
+      el("td", {}, [c.has_signing_secret
+        ? el("span", { className: "pill", textContent: "signed" })
+        : el("span", { className: "pill warn", textContent: "trust-body" })]),
+      el("td", { className: "muted", textContent: c.allowed_origins.join(", ") || "any" }),
+    ]));
+    box.append(el("table", {}, [el("thead", {}, [head]), el("tbody", {}, rows)]));
+  }
+
+  // --- Submit ---
+  async function submit() {
+    const offers = readOffers();
+    const status = $("formStatus");
+    status.className = "status";
+    if (!$("customer_id").value.trim() || !$("public_key").value.trim()) { status.className = "status err"; status.textContent = "customer_id and public_key are required"; return; }
+    if (!offers.length) { status.className = "status err"; status.textContent = "at least one offer is required"; return; }
+    const spec = {
+      customer_id: $("customer_id").value.trim(),
+      public_key: $("public_key").value.trim(),
+      product: {
+        product_name: $("product_name").value.trim(),
+        product_context: $("product_context").value.trim(),
+        activation_definition: $("activation_definition").value.trim(),
+        pricing_summary: $("pricing_summary").value.trim(),
+      },
+      offers,
+      competitors: csv("competitors"),
+      allowed_origins: csv("allowed_origins"),
+    };
+    $("submit").disabled = true;
+    status.textContent = "provisioning…";
+    try {
+      const r = await api("POST", "/configs", spec);
+      showSuccess(r);
+      status.textContent = "";
+      ["customer_id", "public_key", "product_name", "product_context", "activation_definition", "pricing_summary", "competitors", "allowed_origins"].forEach((id) => ($(id).value = ""));
+      $("offers").innerHTML = ""; addOfferRow();
+      await refreshList();
+    } catch (e) {
+      status.className = "status err";
+      status.textContent = e.status === 409 ? `conflict: ${e.detail}`
+        : e.status === 422 ? `invalid spec: ${e.detail}`
+        : e.status === 401 ? "admin token rejected" : `error: ${e.detail || e}`;
+    } finally {
+      $("submit").disabled = false;
+    }
+  }
+
+  function showSuccess(r) {
+    const box = $("result");
+    box.className = "banner ok";
+    box.innerHTML = "";
+    box.append(el("div", { innerHTML: `Provisioned <code>${r.customer_id}</code> with ${r.offers} offer(s). It is live now — no restart.` }));
+    box.append(el("div", { style: "margin-top:10px;font-weight:700", textContent: "Store the signing secret now — it is shown once and cannot be recovered." }));
+    const secretRow = el("div", { className: "secret" }, [
+      el("code", { id: "secretVal", textContent: r.signing_secret }),
+      el("button", { className: "ghost sm", textContent: "copy", onclick: () => navigator.clipboard.writeText(r.signing_secret) }),
+    ]);
+    box.append(el("div", { style: "margin-top:10px", innerHTML: `public_key: <code>${r.public_key}</code>` }));
+    box.append(secretRow);
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  $("connect").onclick = connect;
+  $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") connect(); });
+  $("addOffer").onclick = () => addOfferRow();
+  $("submit").onclick = submit;
+  addOfferRow();
+</script>
+</body>
+</html>

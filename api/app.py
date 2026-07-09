@@ -19,8 +19,11 @@ import os
 import time
 from typing import Callable, Optional
 
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from .ratelimit import RateLimiter, RateLimitExceeded
 from .registry import Customer, CustomerRegistry, default_registry
@@ -38,6 +41,7 @@ from .service import (
     IdentityRejected,
     SessionNotFound,
     create_customer_from_spec,
+    list_customers,
     record_outcome,
     record_resolution,
     run_turn,
@@ -241,6 +245,21 @@ def create_app(
             "signing_secret": record["signing_secret"],
             "offers": len(record["config"]["interventions"]),
         }
+
+    @app.get("/configs")
+    def list_configs(_: None = Depends(authenticate_admin)) -> dict:
+        # Non-secret roster for the admin console. Same gate as create; never returns a secret.
+        return {"customers": list_customers(registry)}
+
+    @app.get("/admin", include_in_schema=False)
+    def admin_console() -> FileResponse:
+        # The operator's onboarding cockpit. Static form -- it holds no secret itself (the admin
+        # token is entered at runtime and lives only in the browser), so serving the HTML is safe;
+        # every action it takes still goes through the admin-gated endpoints above. Disabled (404)
+        # whenever the admin surface is off, so it can't sit open advertising the API shape.
+        if not admin_key:
+            raise HTTPException(status_code=404, detail="not found")
+        return FileResponse(Path(__file__).parent / "admin.html")
 
     return app
 
