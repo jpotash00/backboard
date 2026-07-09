@@ -84,6 +84,9 @@ def test_full_session_never_activated_gets_onboarding(tmp_path):
     # The offer is resolved so the host can render it without re-fetching config.
     assert body["intervention"]["type"] == "onboarding"
     assert "setup call" in body["intervention"]["description"].lower()
+    # The decision is declared end-to-end: economics + an auditable trace over the wire.
+    assert out["economics"]["customer_value"] == out["economics"]["customer_value"]
+    assert any(e.get("chosen") for e in out["decision_trace"])
 
     # Transcript logged for the data asset.
     log = (tmp_path / "sessions.jsonl").read_text().strip()

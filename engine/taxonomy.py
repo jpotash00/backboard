@@ -75,6 +75,80 @@ def _default_preferred() -> dict[str, list[str]]:
     }
 
 
+def _default_type_cost() -> dict[str, float]:
+    """Suggested $ cost to the business of *making* each kind of offer. Rough, opinionated
+    defaults -- tune them to your margins. A discount gives up real money; a roadmap
+    notification costs nothing; onboarding/support cost a person's time."""
+    return {
+        "discount": 75.0, "downgrade": 30.0, "pause": 10.0,
+        "onboarding": 15.0, "support": 15.0, "roadmap": 0.0,
+        "gift": 20.0, "extend_trial": 5.0, "none": 0.0,
+    }
+
+
+def _default_save_prior() -> dict[str, float]:
+    """Suggested P(save) that this churner is saveable AT ALL when acted on -- keyed by
+    reason. The starting point; the compounding data asset (runs/*.jsonl) is what you
+    recalibrate these from."""
+    return {
+        "never_activated": 0.35, "price_value_mismatch": 0.50, "value_ended": 0.10,
+        "missing_capability": 0.25, "switched_competitor": 0.20,
+        "product_quality": 0.40, "involuntary": 0.90, "unknown": 0.0,
+    }
+
+
+def _default_effectiveness() -> dict[str, float]:
+    """How well each action TYPE converts a saveable churner, 0..1. Without this, EV would
+    just minimize cost (save odds would be constant across options). A discount converts a
+    price churner well; a pause holds fewer; a roadmap-notify barely any."""
+    return {
+        "discount": 0.9, "downgrade": 0.7, "onboarding": 0.8, "support": 0.7,
+        "pause": 0.5, "gift": 0.6, "extend_trial": 0.5, "roadmap": 0.3, "none": 0.0,
+    }
+
+
+@dataclass
+class Scoring:
+    """The SUGGESTED economics behind each decision. Every value is an opinionated default;
+    you fine-tune the numbers, never the logic. Two uses:
+
+      1. DECLARE -- the economics of every decision are written into `Outcome.decision_trace`
+         (what each option would cost, its expected value), so spend is auditable.
+      2. RANK -- when `Policy.rank_by == "expected_value"`, options are chosen to maximize
+         EV = P(save | reason) * customer_value - cost(action), where
+         customer_value = user.mrr * value_horizon_months (an LTV proxy).
+
+    This is the offer-efficiency knob: same saves, less margin spent."""
+    value_horizon_months: int = 12
+    type_cost: dict[str, float] = field(default_factory=_default_type_cost)
+    save_prior: dict[str, float] = field(default_factory=_default_save_prior)
+    type_effectiveness: dict[str, float] = field(default_factory=_default_effectiveness)
+    default_type_cost: float = 10.0
+    default_save_prior: float = 0.20
+    default_effectiveness: float = 0.5
+    # Optional per-type confidence overrides: a costly action can demand more certainty than
+    # the global floor (a wrong discount burns money; a wrong roadmap-notify costs nothing).
+    # Empty by default -- the global floor governs everything.
+    min_confidence_by_type: dict[str, float] = field(default_factory=dict)
+
+    def cost_of(self, type_: str) -> float:
+        return self.type_cost.get(type_, self.default_type_cost)
+
+    def save_probability(self, reason: str) -> float:
+        return self.save_prior.get(reason, self.default_save_prior)
+
+    def effectiveness_of(self, type_: str) -> float:
+        return self.type_effectiveness.get(type_, self.default_effectiveness)
+
+    def expected_value(self, reason: str, type_: str, customer_value: float) -> float:
+        """EV = P(saveable) * P(this action converts) * value_at_stake - cost."""
+        p = min(1.0, self.save_probability(reason) * self.effectiveness_of(type_))
+        return round(p * customer_value - self.cost_of(type_), 2)
+
+    def required_confidence(self, type_: str, floor: float) -> float:
+        return max(floor, self.min_confidence_by_type.get(type_, 0.0))
+
+
 @dataclass
 class Policy:
     """The business rulebook -- per company. Which resolution each reason earns, which
@@ -87,6 +161,10 @@ class Policy:
     discount_reasons: set[str] = field(default_factory=lambda: {"price_value_mismatch"})
     # Reasons where the honest move is to let them go cleanly, warm door open.
     let_go_reasons: set[str] = field(default_factory=lambda: {"value_ended"})
+    # How to pick among eligible options. "preferred" = the curated per-reason order above
+    # (the safe, suggested default). "expected_value" = maximize EV via `scoring` below.
+    rank_by: str = "preferred"
+    scoring: Scoring = field(default_factory=Scoring)
 
 
 @dataclass
@@ -130,6 +208,14 @@ class ProductConfig:
         for rid in self.policy.discount_reasons | self.policy.let_go_reasons:
             if rid not in known:
                 raise ValueError(f"policy references unknown reason '{rid}'")
+        if self.policy.rank_by not in ("preferred", "expected_value"):
+            raise ValueError("policy.rank_by must be 'preferred' or 'expected_value'")
+        sc = self.policy.scoring
+        if sc.value_horizon_months <= 0:
+            raise ValueError("scoring.value_horizon_months must be positive")
+        for t, c in sc.min_confidence_by_type.items():
+            if not 0.0 <= c <= 1.0:
+                raise ValueError(f"scoring.min_confidence_by_type['{t}'] must be in [0, 1]")
         return self
 
 
@@ -160,3 +246,8 @@ class Outcome:
     intervention_id: Optional[str]
     rationale: str
     turns_used: int
+    # Declared by policy (not the model): a full audit trail of the authorization.
+    # `economics` summarizes the money at stake + margin spent; `decision_trace` lists
+    # every option considered, its cost/EV, and why it won or was rejected.
+    economics: Optional[dict] = None
+    decision_trace: list = field(default_factory=list)

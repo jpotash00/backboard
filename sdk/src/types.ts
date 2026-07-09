@@ -35,6 +35,12 @@ export interface Outcome {
   intervention_id: string | null;
   rationale: string;
   turns_used: number;
+  /** Declared decision audit from deterministic policy (never the model): the money at
+   * stake + margin spent. Keys include customer_value, save_probability, margin_spent. */
+  economics?: Record<string, unknown> | null;
+  /** Every option policy considered, each with its cost/expected_value and why it won or
+   * was rejected — so an authorized spend is fully traceable. */
+  decision_trace?: Array<Record<string, unknown>>;
 }
 
 /** An authorized action from the customer's own menu, spelled out so the host can

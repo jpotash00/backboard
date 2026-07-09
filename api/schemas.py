@@ -40,6 +40,10 @@ class OutcomeModel(BaseModel):
     intervention_id: Optional[str]
     rationale: str
     turns_used: int
+    # Declared decision audit (from deterministic policy, never the model): the money at
+    # stake + margin spent, and every option considered with its cost/EV and verdict.
+    economics: Optional[dict[str, Any]] = None
+    decision_trace: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class InterventionModel(BaseModel):

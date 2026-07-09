@@ -128,7 +128,47 @@
       ],
       "let_go_reasons": [
         "value_ended"
-      ]
+      ],
+      "rank_by": "preferred",
+      "scoring": {
+        "value_horizon_months": 12,
+        "type_cost": {
+          "discount": 75.0,
+          "downgrade": 30.0,
+          "pause": 10.0,
+          "onboarding": 15.0,
+          "support": 15.0,
+          "roadmap": 0.0,
+          "gift": 20.0,
+          "extend_trial": 5.0,
+          "none": 0.0
+        },
+        "save_prior": {
+          "never_activated": 0.35,
+          "price_value_mismatch": 0.5,
+          "value_ended": 0.1,
+          "missing_capability": 0.25,
+          "switched_competitor": 0.2,
+          "product_quality": 0.4,
+          "involuntary": 0.9,
+          "unknown": 0.0
+        },
+        "type_effectiveness": {
+          "discount": 0.9,
+          "downgrade": 0.7,
+          "onboarding": 0.8,
+          "support": 0.7,
+          "pause": 0.5,
+          "gift": 0.6,
+          "extend_trial": 0.5,
+          "roadmap": 0.3,
+          "none": 0.0
+        },
+        "default_type_cost": 10.0,
+        "default_save_prior": 0.2,
+        "default_effectiveness": 0.5,
+        "min_confidence_by_type": {}
+      }
     }
   }
 }

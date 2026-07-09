@@ -24,31 +24,101 @@ CONFIDENCE_FLOOR = DEFAULT_CONFIDENCE_FLOOR
 
 
 def decide(outcome: Outcome, config: ProductConfig, user: UserContext) -> Outcome:
+    """Authorize an action (or none), and DECLARE why. Every path writes a full audit
+    trail onto the outcome: `economics` (value at stake, margin spent) and
+    `decision_trace` (every option considered, its cost/EV, and why it won or lost).
+    The model never reaches this code -- it only supplied the diagnosis being acted on."""
     policy = config.policy
+    scoring = policy.scoring
     floor = policy.confidence_floor
+    value = round(user.mrr * scoring.value_horizon_months, 2)
+    p_save = scoring.save_probability(outcome.reason)
 
+    outcome.economics = {
+        "customer_value": value,
+        "value_horizon_months": scoring.value_horizon_months,
+        "save_probability": p_save,
+        "rank_by": policy.rank_by,
+        "margin_spent": 0.0,
+    }
+    trace: list = []
+
+    # 1. Confidence floor -- an honest "I don't know" beats a confident wrong save.
     if outcome.confidence < floor or outcome.reason == "unknown":
         outcome.intervention_id, outcome.savable = None, False
         outcome.rationale = (f"confidence {outcome.confidence:.2f} below floor "
                              f"{floor} -- deferring to your generic cancel flow")
+        trace.append({"decision": "defer", "gate": "confidence_floor",
+                      "confidence": outcome.confidence, "floor": floor})
+        outcome.decision_trace = trace
         return outcome
 
+    # 2. Let-go reasons -- don't fight it; offer a pause, warm door open.
     if outcome.reason in policy.let_go_reasons:
+        pause_id = _find(config, "pause")
         outcome.savable = False
-        outcome.intervention_id = _find(config, "pause")
+        outcome.intervention_id = pause_id
         outcome.rationale = ("need genuinely ended -- offering a pause, not a discount. "
                              "Spending margin here retains no one.")
+        outcome.economics["margin_spent"] = scoring.cost_of("pause") if pause_id else 0.0
+        trace.append({"decision": "let_go", "reason": outcome.reason,
+                      "intervention_id": pause_id})
+        outcome.decision_trace = trace
         return outcome
 
-    for wanted in policy.preferred.get(outcome.reason, []):
+    # 3. Score every option in the reason's menu: eligibility, cost, expected value.
+    candidates = []  # (Intervention | None, trace_entry)
+    for rank, wanted in enumerate(policy.preferred.get(outcome.reason, [])):
         iv = _find_obj(config, wanted)
-        if iv and _eligible(iv, outcome, user, policy):
-            outcome.intervention_id = iv.id
-            outcome.rationale = f"{outcome.reason} -> {iv.type}: {iv.description}"
-            return outcome
+        entry: dict = {"type": wanted, "rank": rank,
+                       "intervention_id": iv.id if iv else None}
+        if iv is None:
+            entry.update(eligible=False, rejected="no intervention of this type in the menu")
+            candidates.append((None, entry))
+            continue
+        required = scoring.required_confidence(iv.type, floor)
+        entry.update(cost=scoring.cost_of(iv.type),
+                     effectiveness=scoring.effectiveness_of(iv.type),
+                     expected_value=scoring.expected_value(outcome.reason, iv.type, value),
+                     required_confidence=required)
+        if not _eligible(iv, outcome, user, policy):
+            rule = iv.eligible_when or "discount-reason gate"
+            entry.update(eligible=False, rejected=f"ineligible ({rule})")
+            candidates.append((None, entry))
+            continue
+        if outcome.confidence < required:
+            entry.update(eligible=False,
+                         rejected=f"confidence {outcome.confidence:.2f} < required "
+                                  f"{required:.2f} for a {iv.type}")
+            candidates.append((None, entry))
+            continue
+        entry["eligible"] = True
+        candidates.append((iv, entry))
 
-    outcome.intervention_id, outcome.savable = None, False
-    outcome.rationale = f"no authorized intervention matches {outcome.reason}"
+    eligible = [(iv, e) for iv, e in candidates if iv is not None]
+
+    if not eligible:
+        outcome.intervention_id, outcome.savable = None, False
+        outcome.rationale = f"no authorized intervention matches {outcome.reason}"
+        outcome.decision_trace = [e for _, e in candidates]
+        return outcome
+
+    # 4. Select. "preferred" = curated order (safe default); "expected_value" = maximize EV.
+    if policy.rank_by == "expected_value":
+        chosen, chosen_entry = max(eligible, key=lambda t: (t[1]["expected_value"], -t[1]["rank"]))
+        method = "max expected_value"
+    else:
+        chosen, chosen_entry = eligible[0]
+        method = "preferred order"
+
+    chosen_entry["chosen"] = True
+    outcome.intervention_id = chosen.id
+    outcome.economics["margin_spent"] = chosen_entry["cost"]
+    outcome.economics["chosen_expected_value"] = chosen_entry["expected_value"]
+    outcome.rationale = (f"{outcome.reason} -> {chosen.type}: {chosen.description} "
+                         f"[{method}; EV={chosen_entry['expected_value']}, "
+                         f"margin={chosen_entry['cost']}]")
+    outcome.decision_trace = [e for _, e in candidates]
     return outcome
 
 

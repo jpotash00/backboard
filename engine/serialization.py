@@ -18,6 +18,7 @@ from .taxonomy import (
     Policy,
     ProductConfig,
     ReasonDef,
+    Scoring,
 )
 
 
@@ -42,6 +43,17 @@ def config_to_dict(c: ProductConfig) -> dict[str, Any]:
             "preferred": {k: list(v) for k, v in c.policy.preferred.items()},
             "discount_reasons": sorted(c.policy.discount_reasons),
             "let_go_reasons": sorted(c.policy.let_go_reasons),
+            "rank_by": c.policy.rank_by,
+            "scoring": {
+                "value_horizon_months": c.policy.scoring.value_horizon_months,
+                "type_cost": dict(c.policy.scoring.type_cost),
+                "save_prior": dict(c.policy.scoring.save_prior),
+                "type_effectiveness": dict(c.policy.scoring.type_effectiveness),
+                "default_type_cost": c.policy.scoring.default_type_cost,
+                "default_save_prior": c.policy.scoring.default_save_prior,
+                "default_effectiveness": c.policy.scoring.default_effectiveness,
+                "min_confidence_by_type": dict(c.policy.scoring.min_confidence_by_type),
+            },
         },
     }
 
@@ -71,6 +83,19 @@ def config_from_dict(data: dict[str, Any]) -> ProductConfig:
         pol_kwargs["discount_reasons"] = set(pol["discount_reasons"])
     if "let_go_reasons" in pol:
         pol_kwargs["let_go_reasons"] = set(pol["let_go_reasons"])
+    if "rank_by" in pol:
+        pol_kwargs["rank_by"] = pol["rank_by"]
+    if "scoring" in pol and pol["scoring"]:
+        sc = pol["scoring"]
+        sc_kwargs: dict[str, Any] = {}
+        for k in ("value_horizon_months", "default_type_cost", "default_save_prior",
+                  "default_effectiveness"):
+            if k in sc:
+                sc_kwargs[k] = sc[k]
+        for k in ("type_cost", "save_prior", "type_effectiveness", "min_confidence_by_type"):
+            if k in sc:
+                sc_kwargs[k] = dict(sc[k])
+        pol_kwargs["scoring"] = Scoring(**sc_kwargs)
     policy = Policy(**pol_kwargs)
 
     config = ProductConfig(

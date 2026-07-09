@@ -34,6 +34,13 @@ That split is the entire safety story (§[5.2](#52-the-safety-split-llm-diagnose
 The npm package `offboard` renders the interview modal, runs the ≤3-question conversation
 against the engine, and hands you a structured `Outcome`. You never touch the LLM.
 
+> **See it run first.** [`demo/`](../demo/) is a mock billing page that drives the real
+> SDK against the real engine — cancel click → in-flow interview → diagnosis → authorized
+> offer — and toggles between two config-driven products (a SaaS tool and a meditation
+> app). It's the fastest way to watch the whole loop end to end. See
+> [demo/README.md](../demo/README.md); start the API with `OFFBOARD_CONFIG_DIR=configs` so
+> both demo customers load.
+
 ### Install & initialize
 
 ```bash
@@ -339,7 +346,9 @@ once in [`engine/taxonomy.py`](../engine/taxonomy.py) and mirrored in
 
 ### 5.2 The safety split: LLM diagnoses, policy authorizes
 
-This is the load-bearing design decision.
+This is the load-bearing design decision. The full treatment — the economic model, the
+`expected_value` ranking mode, and the declared decision trace — is in
+**[DECISIONING.md](DECISIONING.md)**.
 
 - The **interviewer** (LLM) may only ask questions and emit a diagnosis: a `reason`, a
   `confidence`, and the `evidence`. It is structurally incapable of granting anything —
@@ -372,10 +381,11 @@ user clicks Cancel
       │    ├─ "ask"      -> next question  -> { message, done:false }
       │    └─ "diagnose" -> Outcome(reason, confidence, evidence, cover_story, ...)
       │  decide(outcome, config, user)         # policy fills intervention_id + rationale
+      │  resolve intervention_id -> the offer { id, type, description }
       │  log transcript+outcome -> runs/sessions.jsonl
-      │  <- { done:true, outcome }
-  SDK  close modal -> onResolved(outcome)
-  YOU  route on outcome.intervention_id  (or fall back if null)
+      │  <- { done:true, outcome, intervention }
+  SDK  close modal -> onResolved({ ...outcome, intervention })
+  YOU  route on outcome.intervention  (or fall back if null)
 ```
 
 The interviewer is **bounded**: at `MAX_TURNS` (3) it is forced to diagnose with the
@@ -418,9 +428,19 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 | `evidence` | string | the specific thing said/observed that proves it |
 | `cover_story` | string | what they claimed first |
 | `savable` | boolean | policy's judgment on whether a save is worth attempting |
-| `intervention_id` | string \| null | the authorized action, or null (fall back) |
+| `intervention_id` | string \| null | the authorized action's id, or null (fall back) |
 | `rationale` | string | human-readable "why this action" |
 | `turns_used` | number | questions it took (≤ 3) |
+
+`onResolved` receives a **`ResolvedOutcome`** = the `Outcome` above plus a resolved
+`intervention` object — the authorized action spelled out so you can render the offer
+without a config lookup. `null` when policy authorized nothing.
+
+| `intervention` field | Type | Meaning |
+|---|---|---|
+| `id` | string | matches `intervention_id` |
+| `type` | string | `discount` \| `onboarding` \| `pause` \| `downgrade` \| ... (open) |
+| `description` | string | display-ready copy, e.g. `"50% off for 3 months"` |
 
 ### `UserContext` / `POST /sessions` body
 

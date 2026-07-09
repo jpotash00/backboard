@@ -14,6 +14,7 @@ from .taxonomy import (
     ProductConfig,
     Reason,
     ReasonDef,
+    Scoring,
     UserContext,
 )
 from .interviewer import MAX_TURNS, MODEL, Interviewer
@@ -33,6 +34,7 @@ __all__ = [
     "ReasonDef",
     "Intervention",
     "Policy",
+    "Scoring",
     "ProductConfig",
     "UserContext",
     "Outcome",
