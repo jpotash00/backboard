@@ -194,3 +194,50 @@ def test_empty_user_message_is_422(tmp_path):
     sid = client2.post("/sessions", json={"user_id": "u"}, headers=AUTH).json()["session_id"]
     r = client2.post(f"/sessions/{sid}/turn", json={"user_message": ""}, headers=AUTH)
     assert r.status_code == 422
+
+
+def _resolve_a_session(tmp_path):
+    """Run a session to a diagnosis (price_value_mismatch -> discount) and return its id."""
+    client = make_client([
+        json.dumps({"action": "ask", "message": "why?"}),
+        json.dumps({"action": "diagnose", "reason": "price_value_mismatch",
+                    "confidence": 0.9, "evidence": "daily user, cost", "cover_story": "too_expensive",
+                    "savable": True, "message": "got it"}),
+    ], tmp_path)
+    sid = client.post("/sessions", json={"user_id": "u", "activated": True,
+                                         "tenure_days": 200}, headers=AUTH).json()["session_id"]
+    client.post(f"/sessions/{sid}/turn", json={"user_message": "too pricey"}, headers=AUTH)
+    return client, sid
+
+
+def test_resolution_accepted_is_logged(tmp_path):
+    client, sid = _resolve_a_session(tmp_path)
+    r = client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)
+    assert r.status_code == 200 and r.json()["status"] == "recorded"
+
+    rec = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    assert rec["accepted"] is True
+    assert rec["offered"] is True
+    assert rec["intervention_id"] == "discount_50_3mo"
+    assert rec["intervention_type"] == "discount"
+    assert rec["reason"] == "price_value_mismatch"
+
+
+def test_resolution_is_idempotent(tmp_path):
+    client, sid = _resolve_a_session(tmp_path)
+    client.post(f"/sessions/{sid}/resolution", json={"accepted": False}, headers=AUTH)
+    client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)  # retry
+    lines = (tmp_path / "resolutions.jsonl").read_text().strip().splitlines()
+    assert len(lines) == 1                       # recorded once
+    assert json.loads(lines[0])["accepted"] is False   # the first decision stands
+
+
+def test_resolution_unknown_session_is_404(tmp_path):
+    client = make_client([], tmp_path)
+    r = client.post("/sessions/nope/resolution", json={"accepted": True}, headers=AUTH)
+    assert r.status_code == 404
+
+
+def test_resolution_needs_auth(tmp_path):
+    client, sid = _resolve_a_session(tmp_path)
+    assert client.post(f"/sessions/{sid}/resolution", json={"accepted": True}).status_code == 401

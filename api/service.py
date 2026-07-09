@@ -110,6 +110,25 @@ def _resolve_intervention(state: SessionState, intervention_id):
     return InterventionModel(id=iv.id, type=iv.type, description=iv.description)
 
 
+def record_resolution(
+    store: SessionStore,
+    customer: Customer,
+    session_id: str,
+    accepted: bool,
+    logger: TranscriptLogger,
+) -> dict:
+    """Log what the user did with the offer. Idempotent -- a repeat call (double-tap,
+    retry) records once. This is the realized-save ground truth for recalibration."""
+    state = store.get(session_id)
+    if state is None or state.customer_id != customer.id:
+        raise SessionNotFound(session_id)
+    if state.resolution is None:
+        state.resolution = {"accepted": bool(accepted)}
+        logger.log_resolution(state, accepted)
+        store.save(state)
+    return {"status": "recorded", "accepted": state.resolution["accepted"]}
+
+
 def req_to_user(req: CreateSessionRequest):
     from engine import UserContext
 

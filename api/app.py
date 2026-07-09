@@ -19,10 +19,11 @@ from .registry import Customer, CustomerRegistry, default_registry
 from .schemas import (
     CreateSessionRequest,
     CreateSessionResponse,
+    ResolutionRequest,
     TurnRequest,
     TurnResponse,
 )
-from .service import SessionNotFound, run_turn, start_session
+from .service import SessionNotFound, record_resolution, run_turn, start_session
 from .store import SessionStore
 from .transcripts import TranscriptLogger
 
@@ -90,6 +91,17 @@ def create_app(
     ) -> TurnResponse:
         try:
             return run_turn(store, customer, session_id, req, logger)
+        except SessionNotFound:
+            raise HTTPException(status_code=404, detail="session not found")
+
+    @app.post("/sessions/{session_id}/resolution")
+    def resolution(
+        session_id: str,
+        req: ResolutionRequest,
+        customer: Customer = Depends(authenticate),
+    ) -> dict:
+        try:
+            return record_resolution(store, customer, session_id, req.accepted, logger)
         except SessionNotFound:
             raise HTTPException(status_code=404, detail="session not found")
 

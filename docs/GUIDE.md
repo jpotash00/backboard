@@ -196,6 +196,12 @@ key `pk_demo_acme` is seeded; point at real configs with `OFFBOARD_CONFIG_DIR` (
 | `GET /health` | — | `{ "status": "ok" }` |
 | `POST /sessions` | `UserContext` (only `user_id` required) | `{ session_id, message }` |
 | `POST /sessions/{id}/turn` | `{ user_message }` | `{ message, done }` **or** `{ done: true, outcome, intervention }` |
+| `POST /sessions/{id}/resolution` | `{ accepted }` | `{ status, accepted }` — logs the realized save |
+
+The SDK calls `/resolution` for you when the user accepts or declines the in-chat offer;
+call it yourself only if you drive the session headless. It's idempotent, and it appends a
+self-contained record to `runs/resolutions.jsonl` (reason, intervention, `offered`,
+`accepted`) — the ground truth for save rates and for recalibrating the policy's priors.
 
 The turn endpoint is **idempotent** once resolved: calling it again on a finished session
 replays the stored outcome rather than re-diagnosing.

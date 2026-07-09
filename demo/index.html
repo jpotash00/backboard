@@ -3,80 +3,162 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Offboard demo</title>
+  <title>Offboard — demo</title>
   <style>
-    :root { --bg:#0f1115; --card:#171a21; --line:#252a34; --ink:#e7e9ee; --dim:#9aa2af;
-            --accent:#2f6fed; --good:#2ea34d; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-           background:var(--bg); color:var(--ink); min-height:100vh; }
-    .wrap { max-width:720px; margin:0 auto; padding:32px 20px 80px; }
-    h1 { font-size:20px; margin:0 0 4px; }
-    .sub { color:var(--dim); font-size:14px; margin:0 0 24px; }
-    .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
-    .seg { display:flex; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-    .seg button { background:transparent; color:var(--dim); border:0; padding:8px 14px; font-size:14px; cursor:pointer; }
-    .seg button.on { background:var(--accent); color:#fff; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; }
-    .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 0; border-bottom:1px solid var(--line); }
-    .row:last-child { border-bottom:0; }
-    .muted { color:var(--dim); font-size:13px; }
-    .plan { font-weight:600; }
-    select { background:#0f1115; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; width:100%; }
-    .scenario-note { color:var(--dim); font-size:13px; margin-top:8px; line-height:1.5; }
-    .cancel { background:transparent; border:1px solid #6b3b3b; color:#e39; color:#f08; padding:10px 16px;
-              border-radius:10px; cursor:pointer; font-size:14px; }
-    .cancel { color:#ff7a90; border-color:#5a2a34; }
-    .cancel:hover { background:#2a1a1f; }
-    #result { display:none; }
-    #result.show { display:block; }
-    .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; }
-    .pill.reason { background:#22304a; color:#a9c4ff; }
-    .pill.cover { background:#3a2a1a; color:#f0c48a; }
-    .offer { background:#12251a; border:1px solid #1e4d33; border-radius:12px; padding:16px; margin-top:14px; }
-    .offer h3 { margin:0 0 6px; font-size:15px; color:var(--good); }
-    .kv { font-size:13px; color:var(--dim); margin:6px 0; }
-    .kv b { color:var(--ink); font-weight:600; }
-    .accept { background:var(--good); color:#fff; border:0; padding:9px 16px; border-radius:9px; cursor:pointer; font-size:14px; margin-top:10px; }
-    .none { background:#2a1f10; border:1px solid #5a4420; border-radius:12px; padding:14px; margin-top:14px; color:#f0c48a; font-size:14px; }
-    code { background:#0f1115; padding:2px 6px; border-radius:5px; font-size:12px; }
+    :root{
+      --bg:#f5f5f7; --panel:#ffffff; --panel-2:#f5f5f7; --line:rgba(0,0,0,.08);
+      --ink:#1d1d1f; --dim:#86868b; --accent:#0071e3; --accent-strong:#0064cf;
+      --good:#1a8a4a; --good-soft:rgba(26,138,74,.10);
+      --warn:#8a5a00; --warn-soft:rgba(180,120,0,.12);
+      --shadow:0 1px 2px rgba(0,0,0,.04), 0 12px 30px rgba(0,0,0,.06);
+      --ease:cubic-bezier(.32,.72,0,1);
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#000000; --panel:#1c1c1e; --panel-2:#2c2c2e; --line:rgba(255,255,255,.10);
+        --ink:#f5f5f7; --dim:#98989d; --accent:#0a84ff; --accent-strong:#0a84ff;
+        --good:#30d158; --good-soft:rgba(48,209,88,.14);
+        --warn:#ffd426; --warn-soft:rgba(255,180,0,.14);
+        --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.5);
+      }
+    }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      letter-spacing:-.01em; }
+    .wrap{ max-width:600px; margin:0 auto; padding:56px 20px 96px }
+
+    .brand{ display:flex; align-items:center; gap:10px; margin-bottom:32px }
+    .brand-mark{ width:30px; height:30px; border-radius:8px;
+      background:radial-gradient(120% 120% at 30% 20%,#7db8ff,#0071e3 46%,#7a5cff);
+      box-shadow:0 2px 8px rgba(0,113,227,.3) }
+    .brand-name{ font-size:15px; font-weight:600 }
+    .brand-tag{ margin-left:auto; font-size:12px; color:var(--dim) }
+
+    h1{ font-size:32px; line-height:1.1; font-weight:700; letter-spacing:-.03em; margin:0 0 8px }
+    .sub{ color:var(--dim); font-size:16px; line-height:1.5; margin:0 0 32px; max-width:44ch }
+
+    .card{ background:var(--panel); border:1px solid var(--line); border-radius:20px;
+      box-shadow:var(--shadow); padding:6px 22px; margin-bottom:16px }
+    .row{ display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:18px 0; border-bottom:1px solid var(--line) }
+    .row:last-child{ border-bottom:0 }
+    .row-label{ font-size:13px; color:var(--dim); margin-bottom:3px }
+    .row-value{ font-size:16px; font-weight:600 }
+    .plan-price{ font-weight:500; color:var(--dim) }
+
+    .seg{ display:inline-flex; background:var(--panel-2); border-radius:11px; padding:3px; gap:2px }
+    .seg button{ appearance:none; border:0; background:transparent; color:var(--dim);
+      font:inherit; font-size:14px; font-weight:500; padding:7px 14px; border-radius:9px;
+      cursor:pointer; transition:all .2s var(--ease) }
+    .seg button.on{ background:var(--panel); color:var(--ink);
+      box-shadow:0 1px 3px rgba(0,0,0,.12); font-weight:600 }
+    @media (prefers-color-scheme: dark){ .seg button.on{ background:#48484a } }
+
+    .field-label{ font-size:13px; color:var(--dim); display:block; margin:4px 0 8px }
+    .select{ position:relative }
+    select{ appearance:none; width:100%; background:var(--panel-2); color:var(--ink);
+      border:1px solid var(--line); border-radius:12px; padding:12px 40px 12px 14px;
+      font:inherit; font-size:15px; cursor:pointer; transition:border-color .18s ease }
+    select:focus{ outline:none; border-color:var(--accent) }
+    .select::after{ content:""; position:absolute; right:15px; top:50%; width:9px; height:9px;
+      border-right:2px solid var(--dim); border-bottom:2px solid var(--dim);
+      transform:translateY(-70%) rotate(45deg); pointer-events:none }
+    .note{ display:flex; gap:8px; margin-top:12px; padding:12px 14px; border-radius:12px;
+      background:var(--panel-2); color:var(--dim); font-size:13px; line-height:1.5 }
+    .note-tag{ flex:0 0 auto; font-size:11px; font-weight:700; letter-spacing:.03em;
+      text-transform:uppercase; color:var(--accent); padding-top:1px }
+
+    .cancel-row{ display:flex; align-items:center; justify-content:space-between;
+      padding:18px 0 20px }
+    .cancel-btn{ appearance:none; border:1px solid var(--line); background:var(--panel);
+      color:#e0245e; font:inherit; font-size:15px; font-weight:600; padding:11px 20px;
+      border-radius:12px; cursor:pointer; transition:all .18s ease }
+    @media (prefers-color-scheme: dark){ .cancel-btn{ color:#ff453a } }
+    .cancel-btn:hover{ background:var(--panel-2) }
+    .cancel-btn:active{ transform:scale(.98) }
+
+    /* Result */
+    #result{ opacity:0; transform:translateY(10px); transition:all .5s var(--ease); display:none }
+    #result.show{ display:block; opacity:1; transform:none }
+    .result-head{ display:flex; align-items:center; gap:14px; padding:20px 0 }
+    .result-icon{ width:46px; height:46px; border-radius:50%; flex:0 0 auto;
+      display:grid; place-items:center }
+    .result-icon svg{ width:24px; height:24px }
+    .result-icon.good{ background:var(--good-soft); color:var(--good) }
+    .result-icon.warn{ background:var(--warn-soft); color:var(--warn) }
+    .result-icon.neutral{ background:var(--panel-2); color:var(--dim) }
+    .result-title{ font-size:17px; font-weight:600 }
+    .result-title small{ display:block; font-size:13px; font-weight:400; color:var(--dim); margin-top:2px }
+
+    .diag{ padding:16px 0; border-top:1px solid var(--line) }
+    .diag-title{ font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+      color:var(--dim); margin-bottom:12px }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+    .chip{ font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:999px }
+    .chip.reason{ background:var(--accent); color:#fff }
+    .chip.cover{ background:var(--panel-2); color:var(--ink) }
+    .chip-arrow{ color:var(--dim); font-size:13px }
+    .meta{ margin-top:14px; font-size:13px; line-height:1.6; color:var(--dim) }
+    .meta b{ color:var(--ink); font-weight:600 }
+    .evidence{ margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--panel-2);
+      font-size:13px; line-height:1.55; color:var(--ink) }
+    code{ background:var(--panel-2); padding:2px 7px; border-radius:6px; font-size:12.5px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Offboard — live demo</h1>
-    <p class="sub">A mock billing page. Pick a product and a user, hit <b>Cancel subscription</b>,
-      and play the churner. The interview runs against your local engine and returns the
-      diagnosis + the authorized offer.</p>
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">Offboard</div>
+      <div class="brand-tag">live demo</div>
+    </div>
 
-    <div class="bar">
+    <h1>Account &amp; Billing</h1>
+    <p class="sub">A mock billing page. Pick a product and a churner, then hit
+      <b>Cancel subscription</b> to run the exit interview against your local engine.</p>
+
+    <div style="margin-bottom:20px">
       <div class="seg" id="product-seg">
         <button data-product="acme" class="on">Acme Analytics</button>
-        <button data-product="zen">Zen (meditation)</button>
+        <button data-product="zen">Zen</button>
       </div>
     </div>
 
     <div class="card">
       <div class="row">
         <div>
-          <div class="plan" id="acct-name">Acme Analytics</div>
-          <div class="muted" id="acct-plan">Growth · $199/mo</div>
+          <div class="row-label">Plan</div>
+          <div class="row-value" id="acct-name">Acme Analytics</div>
         </div>
-        <button class="cancel" id="cancel-btn">Cancel subscription</button>
+        <div class="row-value plan-price" id="acct-plan">Growth · $199/mo</div>
       </div>
-      <div style="padding-top:14px">
-        <label class="muted">Simulate this user (their behavioral data is sent to the engine):</label>
-        <select id="scenario"></select>
-        <div class="scenario-note" id="scenario-note"></div>
+      <div class="row" style="display:block">
+        <label class="field-label" for="scenario">Simulate this user
+          <span style="opacity:.7">— their behavioral data is sent to the engine</span></label>
+        <div class="select">
+          <select id="scenario"></select>
+        </div>
+        <div class="note">
+          <span class="note-tag">Engine sees</span>
+          <span id="scenario-note"></span>
+        </div>
+      </div>
+      <div class="cancel-row">
+        <div>
+          <div class="row-value">Cancel subscription</div>
+          <div class="row-label" style="margin-top:2px">You'll be asked a couple of questions first.</div>
+        </div>
+        <button class="cancel-btn" id="cancel-btn">Cancel subscription</button>
       </div>
     </div>
 
     <div class="card" id="result">
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-        <span class="muted">Diagnosis:</span>
-        <span class="pill reason" id="r-reason"></span>
-        <span class="muted">— they said:</span>
-        <span class="pill cover" id="r-cover"></span>
+      <div class="result-head">
+        <div class="result-icon" id="r-icon"></div>
+        <div class="result-title" id="r-title"></div>
       </div>
       <div id="r-body"></div>
     </div>
@@ -87,21 +169,27 @@
 
     const API_BASE = "http://localhost:8000";
 
+    const ICONS = {
+      good: '<svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      wave: '<svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 1 0-12 0v3a6 6 0 0 0 6 6M12 22a6 6 0 0 0 6-6M6 11l-2 2M18 11l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      exit: '<svg viewBox="0 0 24 24" fill="none"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    };
+
     // Preset users per product. `context` is the behavioral tell the engine sees.
     const PRODUCTS = {
       acme: {
         name: "Acme Analytics", plan: "Growth · $199/mo", key: "pk_demo_acme",
         scenarios: [
           { id: "acme_never", label: "Signed up, never got going",
-            note: "The engine sees: never connected a data source, 2 logins in 60 days. Try opening with “too expensive.”",
+            note: "Never connected a data source, 2 logins in 60 days. Try opening with “too expensive.”",
             context: { plan:"Starter", mrr:49, tenure_days:61, logins_last_30d:1, activated:false,
               usage_summary:"Signed up 61 days ago. Never connected a data source. 2 logins total, none in 3 weeks." } },
           { id: "acme_price", label: "Daily power user, watching cost",
-            note: "The engine sees: daily active 7 months, constantly hitting the plan's event cap. Try “too expensive.”",
+            note: "Daily active 7 months, constantly hitting the plan's event cap. Try “too expensive.”",
             context: { plan:"Starter", mrr:49, tenure_days:210, logins_last_30d:27, activated:true,
               usage_summary:"Daily active for 7 months, 3 sources connected, constantly hitting the Starter 10k-event cap." } },
           { id: "acme_ended", label: "Project wrapped up",
-            note: "The engine sees: heavy use then a cliff to zero 3 weeks ago. Try “not using it anymore.”",
+            note: "Heavy use then a cliff to zero 3 weeks ago. Try “not using it anymore.”",
             context: { plan:"Growth", mrr:199, tenure_days:320, logins_last_30d:1, activated:true,
               usage_summary:"Heavy daily use for months, then a sharp cliff to near-zero 3 weeks ago." } },
         ],
@@ -110,15 +198,15 @@
         name: "Zen", plan: "Annual · $69.99/yr", key: "pk_demo_zen",
         scenarios: [
           { id: "zen_habit", label: "Never built the habit",
-            note: "The engine sees: 1 session ever, hasn't opened it in weeks. Try “too expensive.”",
+            note: "1 session ever, hasn't opened it in weeks. Try “too expensive.”",
             context: { plan:"Annual", mrr:5.83, tenure_days:45, logins_last_30d:0, activated:false,
               usage_summary:"Signed up 6 weeks ago in a motivated moment, completed 1 session, hasn't opened it since." } },
           { id: "zen_price", label: "Regular meditator, price-sensitive",
-            note: "The engine sees: meditates most mornings for months. Try “it’s gotten too pricey.”",
+            note: "Meditates most mornings for months. Try “it’s gotten too pricey.”",
             context: { plan:"Annual", mrr:5.83, tenure_days:200, logins_last_30d:22, activated:true,
               usage_summary:"Meditates most mornings for months; recently said the annual price is a stretch." } },
           { id: "zen_goal", label: "Sleeping fine now",
-            note: "The engine sees: nightly use for two months, now rarely opens it. Try “not using it.”",
+            note: "Nightly use for two months, now rarely opens it. Try “not using it.”",
             context: { plan:"Annual", mrr:5.83, tenure_days:300, logins_last_30d:2, activated:true,
               usage_summary:"Used it nightly for sleep for two months, now sleeping fine and rarely opens it." } },
         ],
@@ -160,52 +248,57 @@
       Offboard.showCancelFlow({
         userId: s.id,
         context: s.context,
-        // The diagnosis is in — show what the engine learned. The OFFER is presented inside
-        // the modal now; we just react to what the user decides.
-        onResolved: (o) => renderDiagnosis(o),
-        // User accepted the in-chat offer. THIS is where your code calls Stripe.
-        onAccept: (o) => renderAccepted(o),
-        // Declined / no offer / escape hatch — complete the cancellation.
+        // The modal owns the conversation AND the offer. The host just reacts to the
+        // terminal action: the user stayed (accepted) or left (declined / escape hatch).
+        onAccept: (o) => renderStayed(o),
         onCancel: (o) => renderCancelled(o),
       });
     });
 
-    function renderDiagnosis(o) {
-      $("r-reason").textContent = o.reason;
-      $("r-cover").textContent = o.cover_story;
-      const conf = Math.round(o.confidence * 100);
-      $("r-body").innerHTML = `
-        <div class="kv" style="margin-top:12px"><b>Confidence:</b> ${conf}% ·
-          <b>Mode:</b> ${o.mode} · <b>Turns:</b> ${o.turns_used}</div>
-        <div class="kv"><b>Evidence:</b> ${escapeHtml(o.evidence)}</div>
-        <div class="kv" style="margin-top:6px;color:#8a9099">Offer shown in the chat —
-          accept or decline it there.</div>`;
+    function showResult(icon, tone, title, subtitle, bodyHtml) {
+      $("r-icon").className = `result-icon ${tone}`;
+      $("r-icon").innerHTML = ICONS[icon];
+      $("r-title").innerHTML = `${title}<small>${subtitle}</small>`;
+      $("r-body").innerHTML = bodyHtml || "";
       $("result").classList.add("show");
-      $("result").scrollIntoView({ behavior: "smooth" });
+      $("result").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
-    function renderAccepted(o) {
-      const iv = o.intervention;
-      $("r-body").innerHTML = `
-        <div class="offer">
-          <h3>✓ Offer accepted → ${iv.type}</h3>
-          <div class="kv"><b>${escapeHtml(iv.description)}</b></div>
-          <div class="kv" style="margin-top:10px">Offboard hands your code:
-            <code>intervention_id = ${escapeHtml(iv.id)}</code></div>
-          <div class="kv">Your <code>onAccept</code> handler now applies it —
-            e.g. <code>stripe.subscriptions.update(...)</code>. Offboard never calls Stripe.</div>
+    function diagnosisHtml(o) {
+      const conf = Math.round((o.confidence ?? 0) * 100);
+      return `
+        <div class="diag">
+          <div class="diag-title">What we learned</div>
+          <div class="chips">
+            <span class="chip cover">“${escapeHtml(o.cover_story)}”</span>
+            <span class="chip-arrow">→ really</span>
+            <span class="chip reason">${escapeHtml(o.reason)}</span>
+          </div>
+          <div class="meta"><b>${conf}%</b> confidence · <b>${o.turns_used}</b> turns ·
+            ${o.savable ? "flagged <b>savable</b>" : "<b>not</b> savable"}</div>
+          <div class="evidence">${escapeHtml(o.evidence)}</div>
         </div>`;
-      $("result").classList.add("show");
-      $("result").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function renderStayed(o) {
+      const desc = o.intervention ? escapeHtml(o.intervention.description) : "the offer";
+      showResult("good", "good", "Subscription kept 🎉",
+        "The user accepted the in-chat offer.",
+        `<div class="diag" style="border-top:0"><div class="meta">They accepted:
+          <b>${desc}</b>. Apply it via <code>onAccept</code> — e.g. call Stripe with
+          <code>intervention.id</code>.</div></div>` + diagnosisHtml(o));
     }
 
     function renderCancelled(o) {
-      const note = o
-        ? `They declined the offer (or none was authorized) — subscription cancelled cleanly.`
-        : `They tapped <code>Just cancel</code> — no diagnosis, subscription cancelled cleanly.`;
-      $("r-body").innerHTML = `<div class="none" style="margin-top:12px">${note}</div>`;
-      $("result").classList.add("show");
-      $("result").scrollIntoView({ behavior: "smooth" });
+      if (!o) {
+        showResult("exit", "neutral", "Cancelled cleanly",
+          "The user tapped the escape hatch.",
+          `<div class="diag" style="border-top:0"><div class="meta">No diagnosis, no offer —
+            <code>Just cancel</code> was honored immediately.</div></div>`);
+        return;
+      }
+      const sub = o.intervention ? "They declined the offer and left." : "No offer was authorized.";
+      showResult("wave", "warn", "Subscription cancelled", sub, diagnosisHtml(o));
     }
 
     function escapeHtml(s) {

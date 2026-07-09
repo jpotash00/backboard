@@ -126,6 +126,10 @@ export interface ShowCancelFlowOptions {
    * Complete the cancellation here. */
   onCancel?: (outcome: ResolvedOutcome | null) => void;
 
+  /** Legacy alias fired when the user taps the escape hatch before any diagnosis. Prefer
+   * `onCancel` (which is also called with null in that case); kept for back-compat. */
+  onJustCancel?: () => void;
+
   /** Copy overrides for the buttons. */
   justCancelLabel?: string;
   acceptLabel?: string;

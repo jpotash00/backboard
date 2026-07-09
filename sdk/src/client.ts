@@ -42,6 +42,15 @@ export class SessionClient {
     );
   }
 
+  /** Report what the user did with the offer — the realized-save signal for the flywheel.
+   * Fire-and-forget from the modal; failures must never affect the user's experience. */
+  async resolution(sessionId: string, accepted: boolean): Promise<void> {
+    await this.post<unknown>(
+      `/sessions/${encodeURIComponent(sessionId)}/resolution`,
+      { accepted },
+    );
+  }
+
   private async post<T>(path: string, body: unknown): Promise<T> {
     const res = await fetch(this.baseUrl.replace(/\/$/, "") + path, {
       method: "POST",

@@ -30,6 +30,12 @@ class TurnRequest(BaseModel):
     user_message: str = Field(min_length=1)
 
 
+class ResolutionRequest(BaseModel):
+    """What the user did with the offer. `accepted` is the realized save signal that,
+    aggregated, recalibrates the policy's economic priors."""
+    accepted: bool
+
+
 class OutcomeModel(BaseModel):
     """The product. `cover_story` vs `reason` is the whole pitch in one field."""
     reason: str

@@ -23,6 +23,9 @@ class SessionState:
     outcome: Optional[Outcome] = None
     closing_message: Optional[str] = None
     done: bool = False
+    # What the user did with the offer: {"accepted": bool}. The flywheel's ground truth --
+    # the realized save that recalibrates save_prior / effectiveness later.
+    resolution: Optional[dict] = None
 
 
 class SessionStore:

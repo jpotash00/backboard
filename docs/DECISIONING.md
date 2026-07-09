@@ -216,8 +216,12 @@ not yet built:
 - **`decline_to_spend` as a positive decision.** Today a `null` intervention can mean
   "below floor," "no match," or "EV ≤ 0." Separate *chose not to spend* (economics) from
   *nothing configured* (a config gap).
-- **Recalibrate from the data asset.** A job over `runs/sessions.jsonl` that re-fits
-  `save_prior` / `type_effectiveness` from realized saves — closing the loop the logs open.
+- **Recalibrate from the data asset.** The realized-save signal is now captured
+  (`POST /sessions/:id/resolution` → `runs/resolutions.jsonl`, with `reason`,
+  `intervention_type`, `offered`, `accepted`). Still to build: a job that re-fits
+  `save_prior` / `type_effectiveness` from it and **proposes** updated priors for a human
+  to approve (suggest, don't auto-apply). Naive online fitting is biased — you only observe
+  offers you made — so pair it with the holdout arm below for causal signal.
 - **Holdout arm.** Randomly withhold/vary offers for a small %, declare the arm on each
   outcome, and measure *incremental* saves — so offer efficiency is a number, not a claim.
 - **Narration (safe LLM use).** An optional model call that *explains* an already-made
