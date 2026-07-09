@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<title>Offboard · Save the customers you can</title>
+<meta name="description" content="Offboard runs an AI exit interview inside your cancel flow — it finds the real reason customers leave, makes the right save in the moment, and reports the MRR it kept." />
+<style>
+  :root {
+    --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f5f5f7;
+    --fg: #17171b; --fg-2: #52525b; --muted: #8a8a94;
+    --border: #ececf1; --border-2: #dedee4;
+    --brand: #d97757; --brand-fg: #ffffff; --brand-soft: #fbeee8;
+    --accent: #635bff; --accent-soft: #efeefe;
+    --ok: #067647; --ok-soft: #e7f5ee;
+    --shadow: 0 1px 2px rgba(20,20,40,.06), 0 8px 24px rgba(20,20,40,.05);
+    --radius: 14px; --radius-sm: 9px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0a0c; --surface: #141418; --surface-2: #1b1b21;
+      --fg: #f4f4f6; --fg-2: #b5b5bf; --muted: #83838f;
+      --border: #24242c; --border-2: #32323c;
+      --brand: #e08a6d; --brand-fg: #14100e; --brand-soft: #241812;
+      --accent: #8b85ff; --accent-soft: #1e1c3a;
+      --ok: #4ade80; --ok-soft: #10241a;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  a { color: inherit; }
+  .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
+    padding: 13px 22px; background: color-mix(in srgb, var(--bg) 80%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 660; letter-spacing: -.01em; font-size: 15.5px; }
+  .brand .mark { width: 24px; height: 24px; flex: none; }
+  .spacer { flex: 1; }
+  .nav-link { display: none; color: var(--fg-2); text-decoration: none; font-size: 13.5px; font-weight: 550; padding: 0 6px; }
+  .nav-link:hover { color: var(--fg); }
+  @media (min-width: 620px) { .nav-link { display: inline; } }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 38px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600;
+    border-radius: var(--radius-sm); cursor: pointer; text-decoration: none; white-space: nowrap;
+    transition: background .12s, color .12s, border-color .12s, filter .12s, transform .06s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-ghost { color: var(--fg-2); background: var(--surface); border: 1px solid var(--border-2); }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--fg); }
+  .btn-primary { color: var(--brand-fg); background: var(--brand); border: 1px solid transparent; }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn-lg { height: 44px; padding: 0 22px; font-size: 15px; }
+
+  /* ---- Layout ---- */
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 22px; }
+
+  /* ---- Hero ---- */
+  .hero { text-align: center; padding: 76px 22px 60px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 22px;
+    padding: 5px 13px 5px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 560;
+    color: var(--fg-2); background: var(--surface); border: 1px solid var(--border-2); box-shadow: var(--shadow);
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+  h1 {
+    font-size: clamp(30px, 5.4vw, 50px); line-height: 1.06; letter-spacing: -.032em;
+    margin: 0 auto 20px; max-width: 16ch; font-weight: 700;
+  }
+  h1 .grad { background: linear-gradient(120deg, var(--brand), #e0a07f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: clamp(15.5px, 2.2vw, 18.5px); color: var(--fg-2); max-width: 60ch; margin: 0 auto 32px; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .cta-note { margin-top: 18px; font-size: 12.5px; color: var(--muted); }
+  .cta-note .mono { color: var(--fg-2); }
+
+  /* ---- Section headers ---- */
+  section { padding: 30px 0; }
+  .sec-head { text-align: center; margin-bottom: 34px; }
+  .sec-head .kicker { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: var(--brand); }
+  .sec-head h2 { font-size: clamp(22px, 3.4vw, 28px); letter-spacing: -.02em; margin: 8px 0 0; font-weight: 680; }
+  .sec-head p { color: var(--fg-2); max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; }
+
+  /* ---- Steps ---- */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 720px) { .steps { grid-template-columns: 1fr; } }
+  .step {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px 22px; box-shadow: var(--shadow);
+  }
+  .step .n {
+    display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+    border-radius: 10px; background: var(--brand-soft); color: var(--brand); margin-bottom: 15px;
+  }
+  .step .n svg { width: 18px; height: 18px; }
+  .step h3 { font-size: 15.5px; margin: 0 0 7px; letter-spacing: -.01em; font-weight: 640; }
+  .step p { margin: 0; color: var(--fg-2); font-size: 13.8px; }
+
+  /* ---- Metrics strip ---- */
+  .metrics {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  @media (max-width: 620px) { .metrics { grid-template-columns: 1fr; } }
+  .metric { padding: 26px 24px; text-align: center; border-right: 1px solid var(--border); }
+  .metric:last-child { border-right: 0; }
+  @media (max-width: 620px) { .metric { border-right: 0; border-bottom: 1px solid var(--border); } .metric:last-child { border-bottom: 0; } }
+  .metric .m-v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .metric .m-k { color: var(--fg-2); font-size: 13.5px; margin-top: 5px; }
+
+  /* ---- CTA band ---- */
+  .band {
+    text-align: center; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 46px 24px; margin: 20px 0 10px;
+  }
+  .band h2 { font-size: clamp(22px, 3.4vw, 27px); letter-spacing: -.02em; margin: 0 0 10px; font-weight: 680; }
+  .band p { color: var(--fg-2); margin: 0 auto 26px; max-width: 46ch; }
+
+  /* ---- Footer ---- */
+  footer { border-top: 1px solid var(--border); margin-top: 40px; }
+  .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; padding: 26px 22px 60px; }
+  .foot .brand { font-size: 14px; }
+  .foot .links { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+  .foot a { color: var(--fg-2); text-decoration: none; font-size: 13px; }
+  .foot a:hover { color: var(--fg); }
+  .foot .copy { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/" class="brand" style="text-decoration:none">
+    <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+    Offboard
+  </a>
+  <div class="spacer"></div>
+  <a href="#how" class="nav-link">How it works</a>
+  <a href="/onboard" class="btn btn-ghost">Set up</a>
+  <a href="/dashboard" class="btn btn-primary">Dashboard</a>
+</div>
+
+<header class="hero">
+  <div class="eyebrow"><span class="dot"></span> AI-native cancel flow</div>
+  <h1>Find out why customers <span class="grad">really</span> cancel — and save the ones you can.</h1>
+  <p class="lede">
+    Offboard drops an AI exit interview into your cancel flow. It uncovers the true reason behind
+    every churn — not the checkbox one — makes the right retention offer in the moment, and reports
+    the saves and the MRR it kept in one clean dashboard.
+  </p>
+  <div class="cta-row">
+    <a href="/dashboard" class="btn btn-primary btn-lg">Open the dashboard</a>
+    <a href="/onboard" class="btn btn-ghost btn-lg">Set up a tenant</a>
+  </div>
+  <p class="cta-note">Already onboarded? Open the dashboard with your <span class="mono">customer_id</span> and <span class="mono">signing_secret</span>.</p>
+</header>
+
+<main class="wrap">
+  <section id="how">
+    <div class="sec-head">
+      <div class="kicker">How it works</div>
+      <h2>From cancel click to kept revenue</h2>
+      <p>Three moving parts — drop it in, let the engine work the save, and read what it learned.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></span>
+        <h3>Drop it in your flow</h3>
+        <p>A few lines behind your cancel button. The customer meets a short, human conversation instead of a dead-end form.</p>
+      </div>
+      <div class="step">
+        <span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+        <h3>Diagnose &amp; save</h3>
+        <p>The engine finds the real reason to leave and offers the right save — a pause, a discount, a plan change — only when it's worth making.</p>
+      </div>
+      <div class="step">
+        <span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <h3>Read the intelligence</h3>
+        <p>Every session lands in your dashboard: why users churn, which offers land, and the MRR you retained — read-only, tenant-isolated.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="metrics">
+      <div class="metric"><div class="m-v">The real reason</div><div class="m-k">Diagnosed, not self-reported</div></div>
+      <div class="metric"><div class="m-v">In the moment</div><div class="m-k">Targeted saves as they cancel</div></div>
+      <div class="metric"><div class="m-v">Retained MRR</div><div class="m-k">Measured, per tenant</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="band">
+      <h2>Turn your cancel page into your best retention channel.</h2>
+      <p>Set up a tenant in minutes, then watch the saves — and the reasons — roll into your dashboard.</p>
+      <div class="cta-row">
+        <a href="/onboard" class="btn btn-primary btn-lg">Set up Offboard</a>
+        <a href="/dashboard" class="btn btn-ghost btn-lg">I have an account</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand" style="font-size:14px">
+      <svg class="mark" viewBox="0 0 120 120" aria-hidden="true" style="width:20px;height:20px"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+      Offboard
+    </span>
+    <div class="spacer"></div>
+    <nav class="links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/onboard">Set up</a>
+      <a href="/health">Status</a>
+    </nav>
+    <span class="copy">© Offboard</span>
+  </div>
+</footer>
+</body>
+</html>

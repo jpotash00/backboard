@@ -17,6 +17,7 @@ three, not CORS, carry the weight.
 import hmac
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from pathlib import Path
@@ -184,6 +185,9 @@ def create_app(
             limiter.check(f"{tag}:key:{customer.id}", *per_key)
             limiter.check(f"{tag}:ip:{_client_ip(request)}", *per_ip)
         except RateLimitExceeded as exc:
+            logger.log_event(customer.id, "rate_limited",
+                             f"{tag} rate limit hit; retry after {exc.retry_after}s",
+                             meta={"endpoint": tag})
             raise HTTPException(
                 status_code=429,
                 detail="rate limit exceeded",
@@ -220,7 +224,16 @@ def create_app(
         try:
             return start_session(store, client_factory(), customer, req, now=int(now()))
         except IdentityRejected as exc:
+            logger.log_event(customer.id, "identity_rejected", str(exc), meta={"endpoint": "sessions"})
             raise HTTPException(status_code=401, detail=str(exc))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            # The interviewer's opening model call failed (timeout, upstream error). Log it to the
+            # activity stream so the tenant sees flow health, then surface a clean 502.
+            logger.log_event(customer.id, "model_error", f"{type(exc).__name__}: {exc}",
+                             meta={"endpoint": "sessions"})
+            raise HTTPException(status_code=502, detail="engine error opening the interview")
 
     @app.post("/sessions/{session_id}/turn", response_model=TurnResponse)
     def turn(
@@ -233,7 +246,16 @@ def create_app(
         try:
             return run_turn(store, customer, session_id, req, logger)
         except SessionNotFound:
+            logger.log_event(customer.id, "session_not_found",
+                             "turn on an unknown/expired session", session_id=session_id,
+                             meta={"endpoint": "turn"})
             raise HTTPException(status_code=404, detail="session not found")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.log_event(customer.id, "model_error", f"{type(exc).__name__}: {exc}",
+                             session_id=session_id, meta={"endpoint": "turn"})
+            raise HTTPException(status_code=502, detail="engine error processing the turn")
 
     @app.post("/sessions/{session_id}/resolution")
     def resolution(
@@ -246,6 +268,9 @@ def create_app(
         try:
             return record_resolution(store, customer, session_id, req.accepted, logger)
         except SessionNotFound:
+            logger.log_event(customer.id, "session_not_found",
+                             "resolution on an unknown/expired session", session_id=session_id,
+                             meta={"endpoint": "resolution"})
             raise HTTPException(status_code=404, detail="session not found")
 
     @app.post("/outcomes")
@@ -300,6 +325,22 @@ def create_app(
     def list_configs(_: None = Depends(authenticate_admin)) -> dict:
         # Non-secret roster for the admin console. Same gate as create; never returns a secret.
         return {"customers": list_customers(registry)}
+
+    @app.get("/", include_in_schema=False)
+    def landing() -> FileResponse:
+        # Public marketing/landing page for the bare domain. Static, non-secret, and always
+        # available -- it only links to the other surfaces (dashboard/onboard), which enforce
+        # their own gates, so serving it unconditionally advertises nothing sensitive.
+        return FileResponse(Path(__file__).parent / "landing.html")
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    def favicon() -> FileResponse:
+        # Shared brand mark for every served page (admin, onboard, dashboard). Static, non-secret,
+        # always available -- the pages themselves may 404 when their surface is off, but the icon
+        # is harmless to serve unconditionally.
+        return FileResponse(
+            Path(__file__).parent / "favicon.svg", media_type="image/svg+xml"
+        )
 
     @app.get("/admin", include_in_schema=False)
     def admin_console() -> FileResponse:
@@ -386,22 +427,81 @@ def create_app(
     # public by design and would let anyone with the browser key read the tenant's private
     # analytics. The insights layer additionally filters every row to `customer_id`, so a caller
     # can only ever see the tenant it just proved it owns.
+    def _window(days: int):
+        """[since, until) ISO bounds for the last `days` days; days<=0 means all-time (no bounds)."""
+        if days <= 0:
+            return None, None
+        until = datetime.now(timezone.utc)
+        return (until - timedelta(days=days)).isoformat(), until.isoformat()
+
     @app.get("/insights/{customer_id}/analytics")
-    def insights_analytics(customer_id: str, authorization: str = Header(default="")) -> dict:
+    def insights_analytics(
+        customer_id: str, days: int = 30, authorization: str = Header(default="")
+    ) -> dict:
         from .insights import aggregate
 
         authorize_manage(customer_id, authorization)
-        return aggregate(logger.directory, customer_id)
+        days = max(0, min(days, 365))
+        since, until = _window(days)
+        cur = aggregate(logger.directory, customer_id, since, until)
+        cur["range_days"] = days
+        # Previous equal-length window, for the period-over-period deltas the KPI trends show.
+        if days > 0:
+            prev_since = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
+            prev = aggregate(logger.directory, customer_id, prev_since, since)
+            cur["previous"] = {
+                "total_sessions": prev["total_sessions"], "deflection_rate": prev["deflection_rate"],
+                "retained_mrr": prev["retained_mrr"], "at_risk_mrr": prev["at_risk_mrr"],
+                "retention_rate": prev["retention"]["rate"],
+            }
+        return cur
 
-    @app.get("/insights/{customer_id}/events")
-    def insights_events(
-        customer_id: str, limit: int = 50, authorization: str = Header(default="")
+    @app.get("/insights/{customer_id}/causal")
+    def insights_causal(
+        customer_id: str, days: int = 30, authorization: str = Header(default="")
     ) -> dict:
-        from .insights import recent_events
+        # The holdout read: treatment vs control retention -> incremental saves the flow CAUSED.
+        from .insights import causal_lift
+
+        authorize_manage(customer_id, authorization)
+        since, until = _window(max(0, min(days, 365)))
+        return causal_lift(logger.directory, customer_id, since, until)
+
+    @app.get("/insights/{customer_id}/sessions")
+    def insights_sessions(
+        customer_id: str, limit: int = 50, days: int = 0, authorization: str = Header(default="")
+    ) -> dict:
+        from .insights import recent_sessions
 
         authorize_manage(customer_id, authorization)
         limit = max(1, min(limit, 200))  # bound the page so a huge log can't be dumped in one call
-        return {"events": recent_events(logger.directory, customer_id, limit)}
+        since, until = _window(max(0, min(days, 365)))
+        return {"sessions": recent_sessions(logger.directory, customer_id, limit, since, until)}
+
+    @app.get("/insights/{customer_id}/sessions/{session_id}")
+    def insights_session_detail(
+        customer_id: str, session_id: str, authorization: str = Header(default="")
+    ) -> dict:
+        # Full decision inspection: transcript + the complete authorization audit trail. The
+        # customer_id gate in session_detail is the isolation boundary; a wrong id is a flat 404.
+        from .insights import session_detail
+
+        authorize_manage(customer_id, authorization)
+        detail = session_detail(logger.directory, customer_id, session_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return detail
+
+    @app.get("/insights/{customer_id}/activity")
+    def insights_activity(
+        customer_id: str, limit: int = 100, days: int = 0, authorization: str = Header(default="")
+    ) -> dict:
+        from .insights import recent_activity
+
+        authorize_manage(customer_id, authorization)
+        limit = max(1, min(limit, 300))
+        since, until = _window(max(0, min(days, 365)))
+        return {"activity": recent_activity(logger.directory, customer_id, limit, since, until)}
 
     @app.get("/dashboard", include_in_schema=False)
     def dashboard_page() -> FileResponse:

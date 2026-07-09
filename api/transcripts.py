@@ -116,6 +116,34 @@ class TranscriptLogger:
             (i.type for i in state.config.interventions if i.id == intervention_id), None
         )
 
+    def log_event(
+        self,
+        customer_id: str,
+        event_type: str,
+        detail: str = "",
+        session_id: "str | None" = None,
+        meta: "dict | None" = None,
+    ) -> None:
+        """The operational log: failures and notable actions, per tenant, surfaced in the
+        dashboard's activity view. This is deliberately separate from the `sessions`/`resolutions`
+        data asset -- it answers "is my cancel flow healthy?" (rate limits tripping, identity
+        tokens rejected, the model erroring, sessions expiring), not "why did users churn?".
+
+        `event_type` is a short stable slug (rate_limited / identity_rejected / session_not_found /
+        model_error / ...); `detail` is a human-readable one-liner; `meta` is a small bag of extra
+        context. No raw user identifiers here -- events are operational, not per-person."""
+        self._append(
+            "events",
+            {
+                "logged_at": datetime.now(timezone.utc).isoformat(),
+                "customer_id": customer_id,
+                "type": event_type,
+                "detail": detail,
+                "session_id": session_id,
+                "meta": meta or {},
+            },
+        )
+
     def log_outcome(
         self, customer_id: str, user_id: str, active: bool, observed_at: str
     ) -> None:

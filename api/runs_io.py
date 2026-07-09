@@ -16,8 +16,10 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
 
-# The three append-only streams the API produces. Retention/erasure iterate these by name.
-STREAMS = ("sessions", "resolutions", "outcomes")
+# The append-only streams the API produces. Retention/erasure iterate these by name.
+# `events` is the operational log (failures + notable actions) surfaced in the dashboard's
+# activity view -- distinct from `sessions` (completed interviews) and `resolutions` (offers taken).
+STREAMS = ("sessions", "resolutions", "outcomes", "events")
 
 _SUFFIX = ".jsonl"
 
