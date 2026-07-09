@@ -26,7 +26,7 @@ import type { InitOptions, ShowCancelFlowOptions } from "./types.js";
  * No `/v1` suffix: the engine serves routes at the root. If you host it under a version
  * prefix, include that here AND set the API's `OFFBOARD_ROOT_PATH` to match.
  */
-const DEFAULT_API_BASE_URL = "https://api.offboard.dev";
+const DEFAULT_API_BASE_URL = "https://offboard.fly.dev";
 
 function resolveBaseUrl(explicit?: string): string {
   if (explicit) return explicit;
