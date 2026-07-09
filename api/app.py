@@ -380,6 +380,38 @@ def create_app(
         except CustomerNotFound:
             raise HTTPException(status_code=404, detail="customer not found")
 
+    # --- Customer insights (the dashboard's read API) ------------------------------------------
+    # These return a tenant's OWN churn data back to it. They are gated by `authorize_manage`
+    # (the tenant's secret signing_secret, or the admin key) -- NOT the publishable key, which is
+    # public by design and would let anyone with the browser key read the tenant's private
+    # analytics. The insights layer additionally filters every row to `customer_id`, so a caller
+    # can only ever see the tenant it just proved it owns.
+    @app.get("/insights/{customer_id}/analytics")
+    def insights_analytics(customer_id: str, authorization: str = Header(default="")) -> dict:
+        from .insights import aggregate
+
+        authorize_manage(customer_id, authorization)
+        return aggregate(logger.directory, customer_id)
+
+    @app.get("/insights/{customer_id}/events")
+    def insights_events(
+        customer_id: str, limit: int = 50, authorization: str = Header(default="")
+    ) -> dict:
+        from .insights import recent_events
+
+        authorize_manage(customer_id, authorization)
+        limit = max(1, min(limit, 200))  # bound the page so a huge log can't be dumped in one call
+        return {"events": recent_events(logger.directory, customer_id, limit)}
+
+    @app.get("/dashboard", include_in_schema=False)
+    def dashboard_page() -> FileResponse:
+        # The customer's read-only cockpit. Static page -- it holds no secret (the tenant enters its
+        # customer_id + signing_secret at runtime, they live only in the browser), and every read it
+        # makes goes through the authorize_manage-gated endpoints above. Always served: a tenant
+        # needs to reach it without an operator, and it advertises nothing an unauthorized caller
+        # can act on.
+        return FileResponse(Path(__file__).parent / "dashboard.html")
+
     return app
 
 
