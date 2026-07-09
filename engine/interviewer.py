@@ -24,7 +24,13 @@ def _text_of(resp) -> str:
     first = resp.content[0]
     return getattr(first, "text", "") if resp.content else ""
 
-SYSTEM = """You are conducting a brief exit interview inside {product_name}'s cancel flow.
+# The system prompt is split in two so the big, static, customer-level part can be
+# prompt-cached (see `_call`): SYSTEM_STATIC is byte-identical across every turn of a
+# session AND across every session for the same ProductConfig, so it forms a cached prefix
+# and only the small per-user USER_BLOCK is re-processed each call. That is why the
+# per-user behavioral data lives in USER_BLOCK, appended AFTER the cache breakpoint,
+# rather than inline here.
+SYSTEM_STATIC = """You are conducting a brief exit interview inside {product_name}'s cancel flow.
 The person is leaving RIGHT NOW. They are mildly annoyed and have ~60 seconds of patience.
 
 PRODUCT
@@ -34,15 +40,11 @@ Pricing: {pricing_summary}
 Known churn patterns: {known_churn_reasons}
 Competitors: {competitors}
 
-WHAT WE KNOW ABOUT THIS PERSON (they don't know you can see this)
-Plan: {plan} (${mrr}/mo) | Tenure: {tenure_days}d | Logins last 30d: {logins_last_30d}
-Activated: {activated}
-Usage: {usage_summary}{signals}
-
 YOUR JOB
 Stated reasons are usually cover stories. "Too expensive" is the great lie of churn --
-it is socially safe and always plausible. Your job is to find what is ACTUALLY true,
-using their words plus the behavioral data above, which frequently contradicts them.
+it is socially safe and always plausible. Your job is to find what is ACTUALLY true, using
+their words plus the behavioral data on this person (shown under "WHAT WE KNOW", below),
+which frequently contradicts them.
 
 A person who says "too expensive" but never activated does not have a price problem.
 A daily power user who says "too expensive" probably does.
@@ -70,6 +72,15 @@ waves it away and the true reason surfaces. Make the offer specific and plausibl
 it to {pricing_summary} and their plan), and only float what the product could actually
 do. People can and do lie here -- treat a "yes I'd stay" as a signal to probe, not proof.
 Whatever they say, feed it into the `savable` judgment; never haggle or keep pitching.
+
+NEVER run a PRICE counterfactual while "too expensive" is still their stated cover and you
+have not yet heard, in their own words, what they were actually trying to DO with the
+product. "Would a cheaper plan keep you?" asked of a price-cover leaver earns a reflexive
+"yeah, probably" that confirms the cover and buries the truth -- exactly the false yes you
+are here to avoid. Get the job-to-be-done on the record first; the counterfactual is a
+closing test AFTER you understand them, never a shortcut to skip that understanding. If
+you must probe before then, probe the capability or the use ("if it did Y tomorrow..."),
+not the price.
 
 RULE OUT THE ALTERNATIVE BEFORE YOU CLOSE. The behavioral data usually fits more than one
 reason at once -- a sudden usage cliff looks identical whether the need ended, the product
@@ -101,6 +112,14 @@ below 0.6 the caller falls back to their generic flow, which is the correct outc
 when you don't actually know."""
 
 
+# Per-user, so it is deliberately NOT cached -- kept small and rendered after the cache
+# breakpoint. The interviewer references this as "WHAT WE KNOW" from SYSTEM_STATIC above.
+USER_BLOCK = """WHAT WE KNOW ABOUT THIS PERSON (they don't know you can see this)
+Plan: {plan} (${mrr}/mo) | Tenure: {tenure_days}d | Logins last 30d: {logins_last_30d}
+Activated: {activated}
+Usage: {usage_summary}{signals}"""
+
+
 class Interviewer:
     def __init__(self, config: ProductConfig, user: UserContext, client=None):
         self.config = config.validate()
@@ -109,30 +128,46 @@ class Interviewer:
         self.messages: list[MessageParam] = []
         self.turns = 0
 
-    def _system(self) -> str:
+    def _static_system(self) -> str:
+        """The customer-level, user-independent prompt. Depends only on the ProductConfig,
+        so it is identical across turns and across users -- the part we prompt-cache."""
         taxonomy = "\n".join(
             f"  {r.id:<21} -- {r.description}" for r in self.config.reasons
         )
-        sig = self.user.signals
-        signals = ("\nOther signals: " + ", ".join(f"{k}={v}" for k, v in sig.items())
-                   if sig else "")
-        return SYSTEM.format(
+        return SYSTEM_STATIC.format(
             max_turns=MAX_TURNS,
             taxonomy=taxonomy,
-            signals=signals,
             product_name=self.config.product_name,
             product_context=self.config.product_context,
             pricing_summary=self.config.pricing_summary,
             activation_definition=self.config.activation_definition,
             known_churn_reasons=", ".join(self.config.known_churn_reasons) or "none recorded",
             competitors=", ".join(self.config.competitors) or "none recorded",
+        )
+
+    def _user_block(self) -> str:
+        """The per-user behavioral block. Kept small and placed after the cache breakpoint."""
+        sig = self.user.signals
+        signals = ("\nOther signals: " + ", ".join(f"{k}={v}" for k, v in sig.items())
+                   if sig else "")
+        return USER_BLOCK.format(
+            signals=signals,
             # user_id is internal; signals is rendered above, not a raw format field.
             **{k: v for k, v in asdict(self.user).items() if k not in ("user_id", "signals")},
         )
 
     def _call(self) -> dict:
+        # Two system blocks: a large static prefix marked for prompt caching (reused across
+        # every turn in a session and across every session sharing this ProductConfig), then
+        # the small per-user block. The cache_control breakpoint caches everything up to and
+        # including the static block, cutting latency + cost on all but the first cache miss.
+        system = [
+            {"type": "text", "text": self._static_system(),
+             "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": self._user_block()},
+        ]
         resp = self.client.messages.create(
-            model=MODEL, max_tokens=2000, system=self._system(), messages=self.messages,
+            model=MODEL, max_tokens=2000, system=system, messages=self.messages,
         )
         # claude-sonnet-5 may return thinking block(s) before the text; concatenate the
         # text blocks rather than assuming content[0] is text.

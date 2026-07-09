@@ -157,7 +157,11 @@ def test_signals_reach_the_interviewer_prompt(tmp_path):
     r = client.post("/sessions", json={"user_id": "u", "signals": {"seats_used": 7}},
                     headers=AUTH)
     assert r.status_code == 200
-    assert "seats_used=7" in seen["system"]
+    # `system` is a list of content blocks (a cached static block + the per-user block);
+    # concatenate their text before asserting the signal rendered into the prompt.
+    system = seen["system"]
+    system_text = system if isinstance(system, str) else "".join(b["text"] for b in system)
+    assert "seats_used=7" in system_text
 
 
 def test_health_needs_no_auth(tmp_path):

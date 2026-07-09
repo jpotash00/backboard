@@ -109,10 +109,25 @@ export interface ShowCancelFlowOptions {
   userId: string;
   /** Optional behavioral context; merged into the session's UserContext. */
   context?: Omit<UserContext, "user_id">;
-  /** Called once the interview resolves — the diagnosis plus the authorized offer. */
-  onResolved: (outcome: ResolvedOutcome) => void;
-  /** Called when the user taps the always-visible "Just cancel" escape hatch. */
-  onJustCancel?: () => void;
-  /** Optional copy override for the escape-hatch button. */
+
+  /** The interview concluded — the diagnosis (and any authorized offer) is in. Fires once,
+   * BEFORE the in-chat offer step. Optional analytics hook; the terminal action the user
+   * takes is reported via onAccept / onCancel. */
+  onResolved?: (outcome: ResolvedOutcome) => void;
+
+  /** The user ACCEPTED the offer shown in-chat. Apply it yourself — e.g. call Stripe using
+   * `outcome.intervention.id`. Offboard never touches your billing; it only tells you what
+   * the user agreed to. (Inspect `outcome.mode`: "act" = confident enough to auto-apply,
+   * "suggest" = you may want a human to approve before charging.) */
+  onAccept?: (outcome: ResolvedOutcome) => void;
+
+  /** The user is LEAVING: they declined the offer, no offer was authorized, or they tapped
+   * the escape hatch. `outcome` is null only for the escape hatch before any diagnosis.
+   * Complete the cancellation here. */
+  onCancel?: (outcome: ResolvedOutcome | null) => void;
+
+  /** Copy overrides for the buttons. */
   justCancelLabel?: string;
+  acceptLabel?: string;
+  declineLabel?: string;
 }

@@ -160,42 +160,52 @@
       Offboard.showCancelFlow({
         userId: s.id,
         context: s.context,
-        onResolved: (outcome) => renderResult(outcome),
-        onJustCancel: () => renderCancelled(),
+        // The diagnosis is in — show what the engine learned. The OFFER is presented inside
+        // the modal now; we just react to what the user decides.
+        onResolved: (o) => renderDiagnosis(o),
+        // User accepted the in-chat offer. THIS is where your code calls Stripe.
+        onAccept: (o) => renderAccepted(o),
+        // Declined / no offer / escape hatch — complete the cancellation.
+        onCancel: (o) => renderCancelled(o),
       });
     });
 
-    function renderResult(o) {
+    function renderDiagnosis(o) {
       $("r-reason").textContent = o.reason;
       $("r-cover").textContent = o.cover_story;
       const conf = Math.round(o.confidence * 100);
-      let html = `
+      $("r-body").innerHTML = `
         <div class="kv" style="margin-top:12px"><b>Confidence:</b> ${conf}% ·
-          <b>Turns:</b> ${o.turns_used} · <b>Savable:</b> ${o.savable}</div>
-        <div class="kv"><b>Evidence:</b> ${escapeHtml(o.evidence)}</div>`;
-      if (o.intervention) {
-        html += `
-          <div class="offer">
-            <h3>Authorized offer → ${o.intervention.type}</h3>
-            <div class="kv"><b>${escapeHtml(o.intervention.description)}</b></div>
-            <div class="kv" style="margin-top:8px">${escapeHtml(o.rationale)}</div>
-            <button class="accept">Accept offer</button>
-          </div>`;
-      } else {
-        html += `<div class="none">No offer authorized — falling back to the normal
-          cancel flow. <div class="kv" style="margin-top:6px">${escapeHtml(o.rationale)}</div></div>`;
-      }
-      $("r-body").innerHTML = html;
+          <b>Mode:</b> ${o.mode} · <b>Turns:</b> ${o.turns_used}</div>
+        <div class="kv"><b>Evidence:</b> ${escapeHtml(o.evidence)}</div>
+        <div class="kv" style="margin-top:6px;color:#8a9099">Offer shown in the chat —
+          accept or decline it there.</div>`;
       $("result").classList.add("show");
       $("result").scrollIntoView({ behavior: "smooth" });
     }
 
-    function renderCancelled() {
-      $("r-reason").textContent = "just_cancel";
-      $("r-cover").textContent = "escape hatch";
-      $("r-body").innerHTML = `<div class="none" style="margin-top:12px">The user tapped
-        <code>Just cancel</code> — no diagnosis, no offer. Subscription cancelled cleanly.</div>`;
+    function renderAccepted(o) {
+      const iv = o.intervention;
+      $("r-body").innerHTML = `
+        <div class="offer">
+          <h3>✓ Offer accepted → ${iv.type}</h3>
+          <div class="kv"><b>${escapeHtml(iv.description)}</b></div>
+          <div class="kv" style="margin-top:10px">Offboard hands your code:
+            <code>intervention_id = ${escapeHtml(iv.id)}</code></div>
+          <div class="kv">Your <code>onAccept</code> handler now applies it —
+            e.g. <code>stripe.subscriptions.update(...)</code>. Offboard never calls Stripe.</div>
+        </div>`;
       $("result").classList.add("show");
+      $("result").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function renderCancelled(o) {
+      const note = o
+        ? `They declined the offer (or none was authorized) — subscription cancelled cleanly.`
+        : `They tapped <code>Just cancel</code> — no diagnosis, subscription cancelled cleanly.`;
+      $("r-body").innerHTML = `<div class="none" style="margin-top:12px">${note}</div>`;
+      $("result").classList.add("show");
+      $("result").scrollIntoView({ behavior: "smooth" });
     }
 
     function escapeHtml(s) {

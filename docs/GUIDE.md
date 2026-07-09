@@ -77,59 +77,55 @@ cancelButton.addEventListener("click", () => {
       signals: { events_this_month: 42000, seats_used: 3 },
     },
 
-    // Called once the interview resolves.
-    onResolved: (outcome) => applyIntervention(outcome),
+    // Optional: the interview concluded — the diagnosis is in (analytics). Fires before
+    // the offer step. The SDK shows the offer in-chat; you don't render it yourself.
+    onResolved: (outcome) => track(outcome),
 
-    // The always-visible escape hatch was tapped. Cancel cleanly, no friction.
-    onJustCancel: () => completeCancellation(),
+    // The user ACCEPTED the offer shown in-chat. THIS is where your code applies it.
+    // Offboard hands you the intervention; it never touches your billing.
+    onAccept: (outcome) => applyOffer(outcome),
+
+    // The user is LEAVING — declined the offer, none was authorized, or tapped the escape
+    // hatch. Complete the cancellation.
+    onCancel: (outcome) => completeCancellation(),
   });
 });
 ```
 
-### Act on the `Outcome`
+### The SDK shows the offer; you apply it
 
-`onResolved` receives a **`ResolvedOutcome`** — the `Outcome` plus a resolved
-`intervention` object (`{ id, type, description }`), so you can render the offer directly
-without re-fetching your config. It's `null` when policy authorized nothing.
+When policy authorizes an offer, the modal presents it **in the chat** with Accept / No-thanks
+buttons. You don't render the offer — you react to the user's choice. On accept, `onAccept`
+receives a **`ResolvedOutcome`** (the `Outcome` plus the resolved `intervention`
+`{ id, type, description }`), and **you** apply it — Offboard never calls Stripe:
 
 ```js
-function applyIntervention(outcome) {
-  // intervention is null when confidence < floor (default 0.6) OR no authorized action
-  // fits — that's the signal to fall back to your generic cancel flow.
-  if (!outcome.intervention) {
-    completeCancellation();
-    return;
-  }
-
-  // The offer is spelled out — render it straight from the outcome, no config lookup:
-  //   outcome.intervention.type         "discount" | "onboarding" | "pause" | ...
-  //   outcome.intervention.description  "50% off for 3 months"  (ready to show the user)
-  showOffer(outcome.intervention.description);
-
-  // Or branch on the specific action when the handling differs per offer:
+async function applyOffer(outcome) {
+  // Branch on the specific intervention id from YOUR config's menu, and do the money.
   switch (outcome.intervention.id) {
-    case "discount_50_3mo":  return offerDiscount();
-    case "setup_call_15m":   return bookOnboardingCall();
-    case "pause_3mo":        return offerPause();
-    // ... one case per intervention id in YOUR config's menu ...
-    default:                 return completeCancellation();
+    case "discount_50_3mo":
+      await stripe.subscriptions.update(subId, { coupon: "HALF_OFF_3MO" });  // your call
+      break;
+    case "setup_call_15m":
+      await scheduling.book("onboarding-15m", outcome /* has the userId context */);
+      break;
+    case "pause_3mo":
+      await stripe.subscriptions.update(subId, { pause_collection: { behavior: "void" } });
+      break;
+    // ... one case per intervention id in your menu ...
   }
 
-  // Everything you need for analytics is on the outcome too:
-  //   outcome.reason        the real reason        ("never_activated")
-  //   outcome.cover_story   what they said first   ("too_expensive")
-  //   outcome.confidence    0..1                   (< floor => intervention is null)
-  //   outcome.savable       policy's judgment on whether a save is worth attempting
-  //   outcome.rationale     human-readable "why this action"
-  //   outcome.turns_used    how many questions it took
+  // `outcome.mode` tells you how far the engine was willing to go on its own:
+  //   "act"     — confident enough to auto-apply (as above)
+  //   "suggest" — recommend; you may route to a human/ops before charging
+  // Plus the full analytics + audit: outcome.reason, cover_story, confidence, economics,
+  // decision_trace — the same object also arrived at onResolved.
 }
 ```
 
-> **Route on the intervention, not on `reason`.** The reason is a diagnosis; the
-> intervention is the authorized action. Two customers can map the same reason to
-> different actions, and low-confidence diagnoses deliberately yield a `null` intervention.
-> (`outcome.intervention_id` — the bare id — is still present for convenience;
-> `outcome.intervention` is that same action spelled out.)
+> **Route on `intervention.id`, not on `reason`.** The reason is a diagnosis; the
+> intervention is the authorized action. Two customers can map the same reason to different
+> actions. `outcome.intervention_id` (the bare id) is also present for convenience.
 
 ### React
 
@@ -139,8 +135,8 @@ function CancelButton({ user }) {
     Offboard.showCancelFlow({
       userId: user.id,
       context: { plan: user.plan, mrr: user.mrr, activated: user.activated },
-      onResolved: (o) => (o.intervention ? presentOffer(o) : router.push("/cancel/confirm")),
-      onJustCancel: () => router.push("/cancel/confirm"),
+      onAccept: (o) => applyOffer(o),                  // they took the save -> your billing
+      onCancel: () => router.push("/cancel/confirm"),  // declined / none / escape hatch
     });
   return <button onClick={onClick}>Cancel subscription</button>;
 }
@@ -402,8 +398,10 @@ user clicks Cancel
       │  resolve intervention_id -> the offer { id, type, description }
       │  log transcript+outcome -> runs/sessions.jsonl
       │  <- { done:true, outcome, intervention }
-  SDK  close modal -> onResolved({ ...outcome, intervention })
-  YOU  route on outcome.intervention  (or fall back if null)
+  SDK  onResolved(outcome)                  # analytics; then, if an offer was authorized:
+  SDK  present offer in-chat [Accept] [No thanks]
+       ├─ Accept    -> onAccept(outcome)     -> YOU apply it (call Stripe, book call, ...)
+       └─ No thanks -> onCancel(outcome)     -> YOU complete the cancellation
 ```
 
 The interviewer is **bounded**: at `MAX_TURNS` (3) it is forced to diagnose with the
@@ -453,9 +451,10 @@ treats reason ids as opaque strings throughout — nothing in the engine changes
 | `corroboration` | object | did the behavioral data back the diagnosis; the confidence it adjusted to |
 | `economics` / `decision_trace` | object / array | the declared, auditable decision record |
 
-`onResolved` receives a **`ResolvedOutcome`** = the `Outcome` above plus a resolved
-`intervention` object — the authorized action spelled out so you can render the offer
-without a config lookup. `null` when policy authorized nothing.
+`onResolved`, `onAccept`, and `onCancel` all receive a **`ResolvedOutcome`** = the
+`Outcome` above plus a resolved `intervention` object (`{ id, type, description }`, or
+`null` when policy authorized nothing). The SDK presents the offer in-chat; `onAccept`
+fires when the user takes it (your cue to apply it), `onCancel` when they don't.
 
 | `intervention` field | Type | Meaning |
 |---|---|---|

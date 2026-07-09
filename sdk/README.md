@@ -35,17 +35,20 @@ cancelButton.addEventListener("click", () => {
       activated: true,
       usage_summary: "Daily active; repeatedly hitting the event cap.",
     },
-    onResolved: (outcome) => {
-      // outcome.reason        -> the REAL reason (e.g. "price_value_mismatch")
-      // outcome.cover_story   -> what they said first (e.g. "too_expensive")
-      // outcome.intervention_id -> the authorized action, or null (fall back)
-      // outcome.confidence    -> below 0.6, intervention_id is null by design
-      applyIntervention(outcome);
+    // The SDK shows the authorized offer IN the chat. You react to the user's choice:
+    onAccept: (outcome) => {
+      // They took the save. Apply it yourself — Offboard never calls Stripe.
+      //   outcome.intervention.id  -> the authorized action to apply
+      //   outcome.reason           -> the REAL reason (e.g. "price_value_mismatch")
+      //   outcome.mode             -> "act" (auto-apply) | "suggest" (maybe human-approve)
+      applyOffer(outcome);
     },
-    onJustCancel: () => {
-      // The always-visible escape hatch was tapped — cancel cleanly.
+    onCancel: (outcome) => {
+      // Declined the offer, none was authorized, or the escape hatch was tapped.
       completeCancellation();
     },
+    // Optional analytics hook, fires when the interview concludes (before the offer step):
+    onResolved: (outcome) => track(outcome),
   });
 });
 ```
