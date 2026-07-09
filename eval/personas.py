@@ -1,0 +1,268 @@
+"""Ten synthetic churners (§5). Each is an LLM roleplay, not a script.
+
+Ground truth lives here: the hidden reason the interviewer must recover, and the
+cover story it must see through. The interviewer sees ONLY the cover story (as the
+persona's opening line) plus the behavioral UserContext -- never `hidden_reason`.
+
+Each persona behaves like a real churner: mildly annoyed, brief, defensive about the
+real reason. It will admit the truth if asked well; it will not volunteer it.
+"""
+
+import os
+from dataclasses import dataclass, field
+
+import anthropic
+
+from engine import Reason, UserContext
+from engine.interviewer import _text_of
+
+PERSONA_MODEL = os.getenv("PERSONA_MODEL", "claude-sonnet-5")
+
+PERSONA_SYSTEM = """You are role-playing a person cancelling their {product_name} subscription.
+You are NOT an assistant. Stay in character no matter what. Reply with plain conversational
+text only -- never JSON, never narration, never stage directions.
+
+WHO YOU ARE
+{personality}
+
+THE REAL REASON YOU'RE LEAVING (your secret -- do not state it outright unprompted)
+{hidden_description}
+
+THE STORY YOU LEAD WITH (socially safe, what you say first)
+"{opening_line}"
+
+HOW YOU BEHAVE
+- You are mildly annoyed and in a hurry. Keep replies to 1-2 short sentences.
+- Your FIRST reply must be your cover story, close to the line above.
+- Do NOT volunteer the real reason. If pushed with a lazy or salesy question, deflect
+  or stay vague.
+- BUT you are an honest person under it all. If the interviewer asks a genuinely
+  perceptive, warm question that gets at the truth -- or points to something specific
+  about how you've actually used the product -- you will admit the real reason, a bit
+  reluctantly. Real people crack when someone actually gets it.
+- Never break character. Never mention that you are an AI or that this is a test."""
+
+
+@dataclass
+class Persona:
+    id: int
+    hidden_reason: Reason
+    cover_story: str
+    opening_line: str
+    personality: str
+    hidden_description: str
+    user: UserContext
+    # The intervention TYPE policy should land on for this churner, given ACME's menu.
+    expected_intervention_type: str
+    # Runtime roleplay state (populated when the persona is run).
+    _history: list = field(default_factory=list, repr=False)
+
+    def respond(self, interviewer_message: str, config, client=None) -> str:
+        """Reply in character to the interviewer's latest question."""
+        client = client or anthropic.Anthropic()
+        self._history.append({"role": "user", "content": interviewer_message})
+        resp = client.messages.create(
+            model=PERSONA_MODEL,
+            max_tokens=1200,  # room for a thinking block plus the short spoken reply
+            system=PERSONA_SYSTEM.format(
+                product_name=config.product_name,
+                personality=self.personality,
+                hidden_description=self.hidden_description,
+                opening_line=self.opening_line,
+            ),
+            messages=self._history,
+        )
+        text = _text_of(resp).strip()
+        self._history.append({"role": "assistant", "content": text})
+        return text
+
+
+def build_personas() -> list[Persona]:
+    """The ten from §5. UserContext carries the behavioral tell that lets the
+    interviewer catch the lie."""
+    return [
+        Persona(
+            id=1,
+            hidden_reason="never_activated",
+            cover_story="too_expensive",
+            opening_line="Honestly it's just too expensive for what it is.",
+            personality="A founder who signed up meaning to set it up, then never did. "
+                        "Slightly embarrassed about that, so 'too expensive' is easier to say.",
+            hidden_description="You never actually connected a data source. You logged in a "
+                              "couple of times, felt lost, and drifted off. It was never really "
+                              "about the money -- you just never got it working.",
+            user=UserContext(
+                user_id="u1", plan="Starter", mrr=49, tenure_days=61,
+                logins_last_30d=1, activated=False,
+                usage_summary="Signed up 61 days ago. Never connected a data source. "
+                              "2 logins total, none in the last 3 weeks.",
+            ),
+            expected_intervention_type="onboarding",
+        ),
+        Persona(
+            id=2,
+            hidden_reason="price_value_mismatch",
+            cover_story="too_expensive",
+            opening_line="It's too expensive, I can't keep paying this.",
+            personality="A hands-on operator who genuinely uses the tool daily but is "
+                        "watching costs. Direct, a little terse.",
+            hidden_description="You use it every day and it works well, but you keep slamming "
+                              "into the Starter event cap and the jump to $199 Growth feels "
+                              "steep for your stage. You DID get real value -- the price just "
+                              "doesn't pencil out at the next tier.",
+            user=UserContext(
+                user_id="u2", plan="Starter", mrr=49, tenure_days=210,
+                logins_last_30d=27, activated=True,
+                usage_summary="Daily active for 7 months. Connected 3 sources, views "
+                              "dashboards daily. Repeatedly hitting the Starter 10k-event cap.",
+            ),
+            expected_intervention_type="discount",
+        ),
+        Persona(
+            id=3,
+            hidden_reason="value_ended",
+            cover_story="not_using_it",
+            opening_line="I'm just not really using it anymore.",
+            personality="A consultant who used it hard for one engagement. Matter-of-fact, "
+                        "no hard feelings.",
+            hidden_description="You used it heavily for a client project that has now wrapped "
+                              "up. The need is simply over -- nothing wrong with the product, "
+                              "you'd use it again for the next project if one came up.",
+            user=UserContext(
+                user_id="u3", plan="Growth", mrr=199, tenure_days=320,
+                logins_last_30d=1, activated=True,
+                usage_summary="Heavy daily use for months, then a cliff to near-zero ~3 weeks "
+                              "ago. Sharp drop, not a gradual decline.",
+            ),
+            expected_intervention_type="pause",
+        ),
+        Persona(
+            id=4,
+            hidden_reason="switched_competitor",
+            cover_story="too_complicated",
+            opening_line="It's honestly a bit too complicated for what I need.",
+            personality="A growth marketer who just moved to a competitor. A little sheepish "
+                        "about switching, so blames complexity instead.",
+            hidden_description="You just moved to Amplitude, which launched a free tier a few "
+                              "days ago. Acme wasn't really too complicated -- the free "
+                              "alternative was simply too good to pass up.",
+            user=UserContext(
+                user_id="u4", plan="Growth", mrr=199, tenure_days=150,
+                logins_last_30d=6, activated=True,
+                usage_summary="Activated, moderate steady use. Cancelled 3 days after "
+                              "Amplitude announced a free tier.",
+            ),
+            expected_intervention_type="roadmap",
+        ),
+        Persona(
+            id=5,
+            hidden_reason="missing_capability",
+            cover_story="too_expensive",
+            opening_line="It's gotten too pricey for us.",
+            personality="A power user who loves the tool but hit a wall on one specific need. "
+                        "Both things feel true to them, so price is the easy thing to say.",
+            hidden_description="You're a power user and mostly happy, but you need cohort "
+                              "retention analysis and Acme just doesn't do it -- you've "
+                              "searched for it over and over. Price stings a bit too, but the "
+                              "real dealbreaker is the missing feature.",
+            user=UserContext(
+                user_id="u5", plan="Growth", mrr=199, tenure_days=240,
+                logins_last_30d=24, activated=True,
+                usage_summary="Power user, near-daily. Repeatedly searched for and attempted "
+                              "'cohort retention' -- a capability Acme does not offer.",
+            ),
+            expected_intervention_type="roadmap",
+        ),
+        Persona(
+            id=6,
+            hidden_reason="product_quality",
+            cover_story="not_using_it",
+            opening_line="I've kind of stopped using it, so I'm cancelling.",
+            personality="An analyst worn down by things breaking. Tired more than angry; "
+                        "stopped logging in because it kept failing.",
+            hidden_description="You stopped using it because dashboards kept failing to load "
+                              "and support couldn't fix it -- six tickets in six weeks. You "
+                              "didn't 'lose interest', the product wore you down.",
+            user=UserContext(
+                user_id="u6", plan="Growth", mrr=199, tenure_days=180,
+                logins_last_30d=4, activated=True,
+                usage_summary="Activated. 6 support tickets in 45 days (dashboards failing to "
+                              "load / slow queries). Use declining sharply as tickets pile up.",
+            ),
+            expected_intervention_type="support",
+        ),
+        Persona(
+            id=7,
+            hidden_reason="involuntary",
+            cover_story="no_reason_given",
+            opening_line="I didn't mean to cancel anything, honestly.",
+            personality="A happy daily user who is confused about why they're in a cancel "
+                        "flow at all. Not actually trying to leave.",
+            hidden_description="You did not choose to cancel. Your card on file expired, the "
+                              "payment failed, and that dumped you into this flow. You still "
+                              "want the product and use it every day.",
+            user=UserContext(
+                user_id="u7", plan="Growth", mrr=199, tenure_days=400,
+                logins_last_30d=29, activated=True,
+                usage_summary="Active every day. No user-initiated cancel -- the card on file "
+                              "expired and the last payment failed.",
+            ),
+            expected_intervention_type="support",
+        ),
+        Persona(
+            id=8,
+            hidden_reason="never_activated",
+            cover_story="found_alternative",
+            opening_line="I found something else that works better for me.",
+            personality="Someone who signed up on a whim, barely touched it, and is quietly "
+                        "covering for that with 'found an alternative.'",
+            hidden_description="You never got started -- one login, never connected anything. "
+                              "You haven't really adopted an alternative either; saying you "
+                              "found one is just a cleaner exit than admitting you never used it.",
+            user=UserContext(
+                user_id="u8", plan="Starter", mrr=49, tenure_days=40,
+                logins_last_30d=0, activated=False,
+                usage_summary="1 login ever, on signup day. Never connected a data source. "
+                              "No activity since.",
+            ),
+            expected_intervention_type="onboarding",
+        ),
+        Persona(
+            id=9,
+            hidden_reason="value_ended",
+            cover_story="too_expensive",
+            opening_line="We just can't justify the cost right now.",
+            personality="Someone who has actually left the company that held this account. "
+                        "Starts with the corporate 'we', then it slips out that they're gone.",
+            hidden_description="You've left the company. The account was theirs and the need "
+                              "left with your job. It isn't about price at all -- you start "
+                              "with 'we can't justify it' out of habit, but if pressed you'll "
+                              "admit 'honestly I don't even work there anymore.'",
+            user=UserContext(
+                user_id="u9", plan="Growth", mrr=199, tenure_days=500,
+                logins_last_30d=2, activated=True,
+                usage_summary="Long-tenured heavy account. Logins dropped off a cliff ~2 weeks "
+                              "ago. Account tied to a company email.",
+            ),
+            expected_intervention_type="pause",
+        ),
+        Persona(
+            id=10,
+            hidden_reason="price_value_mismatch",
+            cover_story="missing_feature",
+            opening_line="There's a feature I really needed that you don't have.",
+            personality="A budget-conscious buyer who has already downgraded once. Leads with "
+                        "'missing feature' but the money keeps coming up.",
+            hidden_description="You get real value from the product, but it costs more than the "
+                              "value justifies for your shrinking budget -- you already "
+                              "downgraded once. There's a minor feature gap, but the honest "
+                              "core is that the price no longer pencils out.",
+            user=UserContext(
+                user_id="u10", plan="Starter", mrr=49, tenure_days=160,
+                logins_last_30d=15, activated=True,
+                usage_summary="Activated, steady use. Already downgraded Growth -> Starter "
+                              "once. Budget comes up repeatedly in past support chats.",
+            ),
+            expected_intervention_type="discount",
+        ),
+    ]

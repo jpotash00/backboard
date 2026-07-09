@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "offboard"
+version = "0.1.0"
+description = "AI exit interview that diagnoses the real churn reason inside the cancel flow, then lets deterministic policy authorize the right intervention."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+offboard-eval = "eval.run_eval:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["engine", "eval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
