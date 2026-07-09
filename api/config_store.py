@@ -19,13 +19,17 @@ from .registry import Customer, CustomerRegistry
 
 def load_customer_file(path: Union[str, Path]) -> Customer:
     """Parse one customer file. `config_from_dict` validates, so a broken config here
-    raises at load with a clear message instead of failing mid-interview."""
+    raises at load with a clear message instead of failing mid-interview. The stored
+    signing_secret is decrypted with the master key (api.crypto) -- an unmigrated plaintext
+    secret passes through, an encrypted one with no/wrong key fails closed at load."""
+    from .crypto import decrypt_secret
+
     data = json.loads(Path(path).read_text())
     return Customer(
         id=data["customer_id"],
         public_key=data["public_key"],
         config=config_from_dict(data["config"]),
-        signing_secret=data.get("signing_secret"),
+        signing_secret=decrypt_secret(data.get("signing_secret")),
         allowed_origins=tuple(data.get("allowed_origins", ())),
     )
 

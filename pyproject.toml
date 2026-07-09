@@ -16,6 +16,8 @@ dependencies = [
 api = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
+    # Envelope encryption of customer signing secrets at rest (api.crypto / Fernet).
+    "cryptography>=42.0.0",
 ]
 # Shared/durable session backend for multi-instance deploys. Optional: without it the API
 # runs single-instance on the in-memory store. See docs/DEPLOY.md.
@@ -27,6 +29,7 @@ dev = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "httpx>=0.27.0",
+    "cryptography>=42.0.0",
 ]
 
 [project.scripts]

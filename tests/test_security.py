@@ -187,6 +187,45 @@ def test_session_creation_is_rate_limited(tmp_path):
     assert 429 in statuses  # per-IP window (20/min) trips before 25
 
 
+class _RecordingLimiter:
+    """Captures every key the app checks, so a test can assert which IP the per-IP limit keyed
+    off -- without having to drive the window to exhaustion."""
+
+    def __init__(self):
+        self.keys = []
+
+    def check(self, key, limit, window_seconds):
+        self.keys.append(key)
+
+
+def test_per_ip_limit_keys_off_forwarded_ip_behind_proxy(tmp_path):
+    """With a trusted proxy hop, the per-IP rate-limit bucket must be the real client from
+    X-Forwarded-For, not the edge proxy the socket terminates at -- otherwise every user behind
+    the proxy shares one bucket and the per-IP limit is inert."""
+    reg = CustomerRegistry()
+    reg.register(Customer(id="secured", public_key=SECURED_KEY, config=ACME,
+                          signing_secret=SECRET))
+    limiter = _RecordingLimiter()
+    app = create_app(
+        registry=reg,
+        store=SessionStore(),
+        logger=TranscriptLogger(directory=str(tmp_path)),
+        client_factory=lambda: CapturingClient(),
+        now=lambda: NOW,
+        limiter=limiter,
+        trusted_proxy_hops=1,
+    )
+    client = TestClient(app)
+    client.post(
+        "/sessions",
+        json={"user_id": "u1", "identity_token": _token(mrr=49)},
+        headers={**AUTH, "X-Forwarded-For": "203.0.113.7"},
+    )
+    assert "session:ip:203.0.113.7" in limiter.keys
+    # and the socket peer (TestClient's "testclient") is NOT what got limited
+    assert not any(k.endswith(":ip:testclient") for k in limiter.keys)
+
+
 def test_oversized_turn_message_is_422(tmp_path):
     client, _ = secured_app(tmp_path)
     sid = client.post(

@@ -102,16 +102,45 @@ def build_record(spec: dict, *, signing_secret: Optional[str] = None) -> dict:
 def write_customer_file(record: dict, config_dir: str) -> Path:
     """Write the envelope as <config_dir>/<customer_id>.json. Refuses to clobber an existing file
     -- overwriting would silently rotate that customer's signing_secret and break live sessions;
-    delete it deliberately to re-provision."""
+    delete it deliberately to re-provision.
+
+    The signing_secret is encrypted AT THIS BOUNDARY (not in build_record) when a master key is
+    configured, so the plaintext still reaches the one-time reveal (API response / CLI print)
+    while only ciphertext lands on disk. Without a key we fall back to writing plaintext and say
+    so loudly -- same stance as the trust-the-browser warning: we never silently pretend a
+    secret is protected when it isn't. Files are written 0600 (dir 0700) as defense in depth."""
+    from api.crypto import encrypt_secret, key_configured
+
     directory = Path(config_dir)
     directory.mkdir(parents=True, exist_ok=True)
+    try:
+        directory.chmod(0o700)
+    except OSError:
+        pass  # best-effort; some mounts don't allow chmod
     path = directory / f"{record['customer_id']}.json"
     if path.exists():
         raise ProvisionError(
             f"{path} already exists; refusing to overwrite (that would rotate the signing_secret). "
             "Delete it first to re-provision."
         )
-    path.write_text(json.dumps(record, indent=2) + "\n")
+
+    to_write = dict(record)
+    secret = record.get("signing_secret")
+    if secret and not str(secret).startswith("enc:"):
+        if key_configured():
+            to_write["signing_secret"] = encrypt_secret(secret)
+        else:
+            print(
+                "WARNING: OFFBOARD_CONFIG_KEY is not set -- writing the signing_secret in "
+                "PLAINTEXT. Anyone who can read this file can forge identity tokens. Set a "
+                "master key and run `python -m onboarding.encrypt_configs` before going live."
+            )
+
+    path.write_text(json.dumps(to_write, indent=2) + "\n")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
     return path
 
 

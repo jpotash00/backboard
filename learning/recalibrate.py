@@ -36,22 +36,16 @@ DEFAULT_SHRINKAGE = 20.0   # pseudo-observations pulling a proposal toward the c
 
 
 def load_resolutions(path: str = "runs/resolutions.jsonl") -> list[dict]:
-    """Read resolution records where an offer was actually made (offered == True)."""
+    """Read resolution records where an offer was actually made (offered == True). Spans every
+    date partition of the stream, not just the legacy monolithic file -- see runs_io.read_stream."""
+    from api.runs_io import read_stream, stem_of
+
     p = Path(path)
-    if not p.exists():
-        return []
-    out = []
-    for line in p.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if rec.get("offered") and rec.get("reason") and rec.get("intervention_type"):
-            out.append(rec)
-    return out
+    return [
+        rec
+        for rec in read_stream(p.parent, stem_of(p))
+        if rec.get("offered") and rec.get("reason") and rec.get("intervention_type")
+    ]
 
 
 def aggregate(records: list[dict]) -> dict[tuple[str, str], tuple[int, int]]:

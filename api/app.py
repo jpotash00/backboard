@@ -62,6 +62,23 @@ TURN_LIMIT_PER_KEY = (120, 60)
 TURN_LIMIT_PER_IP = (120, 60)
 
 
+def _resolve_client_ip(peer: str, forwarded: str, trusted_proxy_hops: int) -> str:
+    """The real client IP for per-IP rate limiting. Directly on the socket, that's the peer
+    address. Behind proxies the peer is the last-hop proxy instead, so when `trusted_proxy_hops
+    > 0` we read X-Forwarded-For and take the entry that many hops in from the RIGHT -- the
+    address the outermost trusted proxy actually saw. Indexing from the right is what makes it
+    unspoofable: a client can prepend extra XFF entries, but they land left of the trusted
+    segment and are ignored. Falls back to the socket peer when the header is missing or shorter
+    than the configured hop count, so a misconfiguration can't silently disable the limit by
+    collapsing every request onto one empty key."""
+    if trusted_proxy_hops <= 0:
+        return peer
+    parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+    if len(parts) >= trusted_proxy_hops:
+        return parts[-trusted_proxy_hops]
+    return peer
+
+
 def _lazy_anthropic_factory() -> Callable[[], object]:
     """Create the anthropic client on first use, not at import time -- so the app can
     be constructed (and health-checked) without ANTHROPIC_API_KEY present. A request timeout
@@ -90,6 +107,7 @@ def create_app(
     now: Callable[[], float] = time.time,
     admin_key: Optional[str] = None,
     config_dir: Optional[str] = None,
+    trusted_proxy_hops: Optional[int] = None,
 ) -> FastAPI:
     registry = registry or default_registry()
     client_factory = client_factory or _lazy_anthropic_factory()
@@ -99,10 +117,13 @@ def create_app(
     admin_key = admin_key if admin_key is not None else os.getenv("OFFBOARD_ADMIN_KEY")
     config_dir = config_dir if config_dir is not None else os.getenv("OFFBOARD_CONFIG_DIR")
     # Backend selection: a shared Redis store (multiple instances / zero-downtime deploys) when
-    # OFFBOARD_REDIS_URL is set, else the process-local store (single instance). Both satisfy
-    # the same create/get/save contract, so nothing downstream changes.
+    # OFFBOARD_REDIS_URL is set, else the process-local store (single instance). Both the store
+    # AND the rate limiter follow this switch -- a per-process limiter on a multi-instance deploy
+    # would let the effective limit scale to N x the configured one, so the shared session
+    # topology and the shared limiter go together. All backends share one create/get/save (store)
+    # and one check (limiter) contract, so nothing downstream changes.
+    redis_url = os.getenv("OFFBOARD_REDIS_URL")
     if store is None:
-        redis_url = os.getenv("OFFBOARD_REDIS_URL")
         if redis_url:
             from .store import redis_store_from_url
             store = redis_store_from_url(redis_url, registry, client_factory)
@@ -112,7 +133,20 @@ def create_app(
     # ephemeral container filesystem it must live on a mounted volume or it's wiped every
     # redeploy -- point OFFBOARD_RUNS_DIR at that volume. See docs/DEPLOY.md.
     logger = logger or TranscriptLogger(directory=os.getenv("OFFBOARD_RUNS_DIR", "runs"))
-    limiter = limiter or RateLimiter(now=now)
+    if limiter is None:
+        if redis_url:
+            from .ratelimit import redis_ratelimiter_from_url
+            limiter = redis_ratelimiter_from_url(redis_url, now=now)
+        else:
+            limiter = RateLimiter(now=now)
+
+    # How many trusted proxy hops sit in front of the app, for reading the real client IP from
+    # X-Forwarded-For. 0 (default) = trust nobody, use the socket peer. Behind an edge/ingress
+    # (e.g. Fly, an ALB) the socket peer is the PROXY, not the user, which would collapse the
+    # per-IP rate limit into a single global bucket -- set OFFBOARD_TRUSTED_PROXY_HOPS to the
+    # number of proxies (1 for a single edge) so the per-IP limit actually bites. See _client_ip.
+    if trusted_proxy_hops is None:
+        trusted_proxy_hops = int(os.getenv("OFFBOARD_TRUSTED_PROXY_HOPS", "0"))
 
     # `root_path` tells FastAPI it's served under a path prefix by an upstream proxy (e.g. an
     # ingress mapping `/v1/* -> /*`), so generated docs/OpenAPI URLs stay correct. Empty by
@@ -131,7 +165,9 @@ def create_app(
     )
 
     def _client_ip(request: Request) -> str:
-        return request.client.host if request.client else "unknown"
+        peer = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("x-forwarded-for", "")
+        return _resolve_client_ip(peer, forwarded, trusted_proxy_hops)
 
     def _rate_limit(request: Request, customer: Customer, per_key, per_ip, tag: str) -> None:
         try:

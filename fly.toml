@@ -7,12 +7,19 @@
 #   fly secrets set \
 #     ANTHROPIC_API_KEY=sk-ant-... \
 #     OFFBOARD_REDIS_URL=redis://...@...:6379 \
-#     OFFBOARD_ADMIN_KEY=$(openssl rand -hex 24)        # enables POST/GET /configs + /admin
+#     OFFBOARD_ADMIN_KEY=$(openssl rand -hex 24) \      # enables POST/GET /configs + /admin
+#     OFFBOARD_CONFIG_KEY=$(python -c "from api.crypto import generate_key; print(generate_key())") \
+#     OFFBOARD_LOG_PEPPER=$(openssl rand -hex 32)       # write-once; never rotate (breaks log joins)
 #   fly deploy
-# Put the per-customer config files on the volume (they hold signing secrets — never in git/image):
+# Put the per-customer config files on the volume (they hold signing secrets — never in git/image).
+# With OFFBOARD_CONFIG_KEY set, the signing_secret is encrypted at rest; provision via POST /configs
+# (encrypts automatically), or if you hand-place a file, run the one-shot migration afterwards:
 #   fly ssh console -C "mkdir -p /data/configs"
 #   cat configs/<customer>.json | fly ssh console -C "tee /data/configs/<customer>.json >/dev/null"
+#   fly ssh console -C "python -m onboarding.encrypt_configs /data/configs"   # encrypt at rest
 #   fly deploy   # restart so the registry loads it   (or use POST /configs for no-restart provisioning)
+# Retention: run the sweeper on a schedule (drops run partitions past OFFBOARD_RETENTION_DAYS):
+#   fly ssh console -C "python -m api.retention /data/runs"
 
 app = "<APP_NAME>"
 primary_region = "<REGION>"
@@ -25,6 +32,10 @@ primary_region = "<REGION>"
   OFFBOARD_CONFIG_DIR = "/data/configs"
   OFFBOARD_RUNS_DIR   = "/data/runs"
   PORT                = "8000"
+  # Fly terminates TLS at its edge proxy, so the app's socket peer is that proxy, not the user.
+  # One trusted hop tells the per-IP rate limiter to read the real client from X-Forwarded-For;
+  # without it every request shares one IP bucket and the per-IP limit does nothing.
+  OFFBOARD_TRUSTED_PROXY_HOPS = "1"
 
 [[mounts]]
   source      = "offboard_data"

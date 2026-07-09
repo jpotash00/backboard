@@ -10,10 +10,16 @@ from fastapi.testclient import TestClient
 
 from api.app import create_app
 from api.registry import Customer, CustomerRegistry, DEMO_PUBLIC_KEY
+from api.runs_io import read_stream
 from api.store import SessionStore
 from api.transcripts import TranscriptLogger
 from engine import Experiment
 from eval.configs import ACME
+
+
+def _stream(tmp_path, stem):
+    """Read a logged stream across its date partitions (the on-disk layout is partitioned now)."""
+    return read_stream(tmp_path, stem)
 
 
 @dataclass
@@ -94,9 +100,9 @@ def test_full_session_never_activated_gets_onboarding(tmp_path):
     assert out["mode"] == "act"
 
     # Transcript logged for the data asset.
-    log = (tmp_path / "sessions.jsonl").read_text().strip()
-    assert log
-    record = json.loads(log)
+    sessions = _stream(tmp_path, "sessions")
+    assert sessions
+    record = sessions[0]
     assert record["outcome"]["reason"] == "never_activated"
     # open question, churner answer, closing message (the diagnose turn adds no question)
     assert len(record["transcript"]) == 3
@@ -217,7 +223,7 @@ def test_resolution_accepted_is_logged(tmp_path):
     r = client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)
     assert r.status_code == 200 and r.json()["status"] == "recorded"
 
-    rec = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    rec = _stream(tmp_path, "resolutions")[0]
     assert rec["accepted"] is True
     assert rec["offered"] is True
     assert rec["intervention_id"] == "discount_50_3mo"
@@ -244,9 +250,9 @@ def test_observations_are_logged_but_never_returned_to_the_browser(tmp_path):
 
     client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)
     # ...but it IS banked in both server-side logs for the causal readout to segment on.
-    res = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    res = _stream(tmp_path, "resolutions")[0]
     assert res["observations"] == obs
-    sess = json.loads((tmp_path / "sessions.jsonl").read_text().strip())
+    sess = _stream(tmp_path, "sessions")[0]
     assert sess["outcome"]["observations"] == obs
 
 
@@ -254,9 +260,9 @@ def test_resolution_is_idempotent(tmp_path):
     client, sid = _resolve_a_session(tmp_path)
     client.post(f"/sessions/{sid}/resolution", json={"accepted": False}, headers=AUTH)
     client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)  # retry
-    lines = (tmp_path / "resolutions.jsonl").read_text().strip().splitlines()
-    assert len(lines) == 1                       # recorded once
-    assert json.loads(lines[0])["accepted"] is False   # the first decision stands
+    recs = _stream(tmp_path, "resolutions")
+    assert len(recs) == 1                        # recorded once
+    assert recs[0]["accepted"] is False          # the first decision stands
 
 
 def test_resolution_unknown_session_is_404(tmp_path):
@@ -310,7 +316,7 @@ def test_control_arm_is_diagnosed_but_offer_withheld(tmp_path):
     assert body["outcome"]["intervention_id"] is None
 
     client.post(f"/sessions/{sid}/resolution", json={"accepted": False}, headers=AUTH)
-    rec = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    rec = _stream(tmp_path, "resolutions")[0]
     assert rec["arm"] == "control"
     assert rec["offered"] is False                      # accept-rate denominator excludes it
     assert rec["intended_intervention_type"] == "discount"  # counterfactual kept for the read
@@ -324,7 +330,7 @@ def test_treatment_arm_serves_the_offer(tmp_path):
                        json={"user_message": "too pricey"}, headers=AUTH).json()
     assert body["intervention"]["id"] == "discount_50_3mo"
     client.post(f"/sessions/{sid}/resolution", json={"accepted": True}, headers=AUTH)
-    rec = json.loads((tmp_path / "resolutions.jsonl").read_text().strip())
+    rec = _stream(tmp_path, "resolutions")[0]
     assert rec["arm"] == "treatment"
     assert rec["offered"] is True
     assert rec["intended_intervention_type"] == "discount"
@@ -336,7 +342,7 @@ def test_outcomes_endpoint_appends_ground_truth(tmp_path):
                     json={"user_id": "u9", "active": False,
                           "observed_at": "2026-03-01T00:00:00+00:00"}, headers=AUTH)
     assert r.status_code == 200 and r.json()["status"] == "recorded"
-    rec = json.loads((tmp_path / "outcomes.jsonl").read_text().strip())
+    rec = _stream(tmp_path, "outcomes")[0]
     assert rec["user_id"] == "u9" and rec["active"] is False
     assert rec["customer_id"] == "acme"
 

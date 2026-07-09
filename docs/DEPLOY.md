@@ -73,8 +73,12 @@ satisfy the same `create/get/save` contract.
 | `ANTHROPIC_API_KEY` | **yes** | — | Model access for the interviewer. Set as a secret. |
 | `OFFBOARD_CONFIG_DIR` | prod | (demo customer) | Directory of per-customer JSON configs. Without it, only the built-in `pk_demo_acme` demo customer exists. |
 | `OFFBOARD_RUNS_DIR` | prod | `runs` | Where the append-only JSONL data asset is written. **Point at a mounted volume.** |
-| `OFFBOARD_REDIS_URL` | topology B | (unset → in-memory) | Redis connection URL. Set it to run multiple instances. |
+| `OFFBOARD_REDIS_URL` | topology B | (unset → in-memory) | Redis connection URL. Set it to run multiple instances. Also switches the rate limiter to a **shared** Redis counter — without it a per-process limiter lets the effective limit scale to N× on N instances. |
+| `OFFBOARD_TRUSTED_PROXY_HOPS` | prod-behind-proxy | `0` | Number of trusted proxies in front of the app, for reading the real client IP from `X-Forwarded-For`. `0` trusts only the socket peer. **Behind an edge/ingress (Fly, an ALB) that peer is the proxy, so the per-IP rate limit collapses into one global bucket — set this to `1` for a single edge** (the hop count is read from the right, so it can't be spoofed by a client prepending entries). |
 | `OFFBOARD_ADMIN_KEY` | optional | (unset → disabled) | Secret bearer token enabling `POST /configs` runtime provisioning (validates, mints the secret, persists, hot-registers — no restart). Unset = endpoint returns 404. |
+| `OFFBOARD_CONFIG_KEY` | **prod** | (unset → plaintext) | Master key (Fernet; mint with `python -c "from api.crypto import generate_key; print(generate_key())"`) that **encrypts each customer's `signing_secret` at rest**. Set it as a platform secret — never on the config volume. Unset = secrets written in plaintext (a loud warning fires). Comma-separate multiple keys to rotate (first encrypts, all decrypt). |
+| `OFFBOARD_LOG_PEPPER` | **prod** | (unset → raw ids) | Secret pepper that pseudonymizes `user_id` in the run logs via HMAC. Deterministic, so joins survive; **write-once** — rotating it breaks joins to historical rows. Unset = raw ids logged (dev only). |
+| `OFFBOARD_RETENTION_DAYS` | optional | `90` | Retention window for `python -m api.retention`. Must exceed your experiment horizon + outcome-reporting lag (floor 45d) or the sweep refuses. |
 | `PORT` | no | `8000` | Bind port (most hosts inject this). |
 | `CHURN_MODEL` | no | `claude-sonnet-5` | Interviewer model id. |
 | `OFFBOARD_MODEL_TIMEOUT` | no | `30` | Per-model-call timeout (seconds) before a clean error. |
@@ -98,9 +102,29 @@ TTL default is 30 minutes — long enough for a real interview, short enough to 
 
 ## The data asset
 
-`transcripts` / `resolutions` / `outcomes` are append-only JSONL under `OFFBOARD_RUNS_DIR`. This
-is the compounding asset: `resolutions.jsonl` + `outcomes.jsonl` are exactly what
-`learning.recalibrate` and the causal holdout readout consume.
+`transcripts` / `resolutions` / `outcomes` are append-only JSONL under `OFFBOARD_RUNS_DIR`, now
+written **date-partitioned** (`resolutions-2026-07-09.jsonl`, …). This is the compounding asset:
+the resolution + outcome streams are exactly what `learning.recalibrate` and the causal holdout
+readout consume — the readers glob every partition (and any legacy monolithic file), so the
+flywheel sees one continuous stream.
+
+**PII / data governance.** This log contains conversation text and per-user economics, so two
+controls ship with it (see the env table):
+
+- **Pseudonymized identity.** With `OFFBOARD_LOG_PEPPER` set, `user_id` is HMAC'd before it's
+  written — the real identifier never lands in the log, but the deterministic hash keeps the
+  resolution→outcome join working. Set the pepper **once and never rotate it** (rotation orphans
+  historical joins).
+- **Retention + erasure.** Partitioning makes deletion a file operation. Run
+  `python -m api.retention` on a schedule (cron / a Fly scheduled machine / a GitHub Action) to
+  drop partitions past `OFFBOARD_RETENTION_DAYS` (default 90; floor 45 so it can't prune a
+  resolution before its horizon outcome arrives). For a single-user erasure request, delete that
+  user's (hashed) rows from the recent partitions.
+
+Note Fly volumes are already encrypted at rest, which covers disk theft; the two controls above
+address the *read-access-on-the-box* and *data-minimization/right-to-erasure* obligations that
+volume encryption does not. If you also want the conversation text encrypted at rest, that's a
+field-level encryption pass on the writer (not enabled here).
 
 On an ephemeral container filesystem (Render, Fly, Railway, Fargate, …) this directory is
 **wiped on every redeploy** unless it's a mounted volume. So:

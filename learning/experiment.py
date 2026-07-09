@@ -34,19 +34,13 @@ TREATMENT = "treatment"
 # Load + join
 # --------------------------------------------------------------------------------------
 def _load_jsonl(path: str) -> list[dict]:
+    """Read a run stream. `path` is the legacy monolithic file (e.g. runs/resolutions.jsonl);
+    we resolve it to its directory + stem and read EVERY date partition too (runs_io.read_stream),
+    so the readout spans all days whether the data is one old file, many partitions, or both."""
+    from api.runs_io import read_stream, stem_of
+
     p = Path(path)
-    if not p.exists():
-        return []
-    out = []
-    for line in p.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            out.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return out
+    return read_stream(p.parent, stem_of(p))
 
 
 def _parse_ts(raw: str) -> Optional[datetime]:
