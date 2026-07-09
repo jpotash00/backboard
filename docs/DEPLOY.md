@@ -74,6 +74,7 @@ satisfy the same `create/get/save` contract.
 | `OFFBOARD_CONFIG_DIR` | prod | (demo customer) | Directory of per-customer JSON configs. Without it, only the built-in `pk_demo_acme` demo customer exists. |
 | `OFFBOARD_RUNS_DIR` | prod | `runs` | Where the append-only JSONL data asset is written. **Point at a mounted volume.** |
 | `OFFBOARD_REDIS_URL` | topology B | (unset → in-memory) | Redis connection URL. Set it to run multiple instances. |
+| `OFFBOARD_ADMIN_KEY` | optional | (unset → disabled) | Secret bearer token enabling `POST /configs` runtime provisioning (validates, mints the secret, persists, hot-registers — no restart). Unset = endpoint returns 404. |
 | `PORT` | no | `8000` | Bind port (most hosts inject this). |
 | `CHURN_MODEL` | no | `claude-sonnet-5` | Interviewer model id. |
 | `OFFBOARD_MODEL_TIMEOUT` | no | `30` | Per-model-call timeout (seconds) before a clean error. |

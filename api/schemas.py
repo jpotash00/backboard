@@ -6,6 +6,37 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
+class OfferSpec(BaseModel):
+    """One authorized save offer. `type` is the intervention kind (discount/pause/downgrade/
+    onboarding/roadmap/support/...); `id` is optional (auto-generated if omitted)."""
+    type: str = Field(min_length=1, max_length=40)
+    description: str = Field(min_length=1, max_length=400)
+    id: Optional[str] = Field(default=None, max_length=80)
+    eligible_when: Optional[str] = Field(default=None, max_length=400)
+
+
+class ProductFacts(BaseModel):
+    """The four facts rendered into the interviewer's context — the only prose a customer
+    must supply; everything else (taxonomy, policy, economics) comes from defaults."""
+    product_name: str = Field(min_length=1, max_length=200)
+    product_context: str = Field(min_length=1, max_length=2000)
+    activation_definition: str = Field(min_length=1, max_length=500)
+    pricing_summary: str = Field(min_length=1, max_length=1000)
+
+
+class ConfigSpecRequest(BaseModel):
+    """POST /configs body: the tiny spec that provisions a customer. Mirrors the
+    `onboarding.provision` spec — product facts + the authorized offer menu; the server mints
+    the signing_secret, fills taxonomy/policy from defaults, validates, persists, and
+    hot-registers. The offer menu is declared, never inferred."""
+    customer_id: str = Field(min_length=1, max_length=200)
+    public_key: str = Field(min_length=1, max_length=200)
+    product: ProductFacts
+    offers: list[OfferSpec] = Field(min_length=1)
+    allowed_origins: list[str] = Field(default_factory=list)
+    competitors: list[str] = Field(default_factory=list)
+
+
 class CreateSessionRequest(BaseModel):
     """POST /sessions body. Only `user_id` is required; the richer the behavioral
     context, the better the diagnosis disambiguates the cover story (constraint #6).

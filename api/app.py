@@ -14,6 +14,7 @@ allowlist. CORS stays permissive at the browser layer (a public API), which is w
 three, not CORS, carry the weight.
 """
 
+import hmac
 import os
 import time
 from typing import Callable, Optional
@@ -24,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .ratelimit import RateLimiter, RateLimitExceeded
 from .registry import Customer, CustomerRegistry, default_registry
 from .schemas import (
+    ConfigSpecRequest,
     CreateSessionRequest,
     CreateSessionResponse,
     OutcomeReport,
@@ -32,8 +34,10 @@ from .schemas import (
     TurnResponse,
 )
 from .service import (
+    ConfigConflict,
     IdentityRejected,
     SessionNotFound,
+    create_customer_from_spec,
     record_outcome,
     record_resolution,
     run_turn,
@@ -80,9 +84,16 @@ def create_app(
     allow_origins: Optional[list[str]] = None,
     limiter: Optional[RateLimiter] = None,
     now: Callable[[], float] = time.time,
+    admin_key: Optional[str] = None,
+    config_dir: Optional[str] = None,
 ) -> FastAPI:
     registry = registry or default_registry()
     client_factory = client_factory or _lazy_anthropic_factory()
+    # Admin surface (POST /configs). `admin_key` is a SECRET bearer token, distinct from any
+    # publishable key -- unset means the endpoint is disabled (404). `config_dir` is where new
+    # customer files are persisted (defaults to the same dir the registry loaded from).
+    admin_key = admin_key if admin_key is not None else os.getenv("OFFBOARD_ADMIN_KEY")
+    config_dir = config_dir if config_dir is not None else os.getenv("OFFBOARD_CONFIG_DIR")
     # Backend selection: a shared Redis store (multiple instances / zero-downtime deploys) when
     # OFFBOARD_REDIS_URL is set, else the process-local store (single instance). Both satisfy
     # the same create/get/save contract, so nothing downstream changes.
@@ -197,6 +208,39 @@ def create_app(
         # write endpoints; it's cheap (no model call) but still a public, authenticated write.
         _rate_limit(request, customer, TURN_LIMIT_PER_KEY, TURN_LIMIT_PER_IP, "outcome")
         return record_outcome(customer, req.user_id, req.active, req.observed_at, logger)
+
+    def authenticate_admin(authorization: str = Header(default="")) -> None:
+        """Admin auth for /configs. A SECRET bearer token (OFFBOARD_ADMIN_KEY), not a
+        publishable key -- provisioning tenants can't be behind a public credential. When no
+        admin key is configured the endpoint is disabled (404), so it can never sit open."""
+        if not admin_key:
+            raise HTTPException(status_code=404, detail="not found")
+        prefix = "Bearer "
+        presented = authorization[len(prefix):].strip() if authorization.startswith(prefix) else ""
+        # constant-time compare so a wrong key can't be discovered by timing.
+        if not presented or not hmac.compare_digest(presented, admin_key):
+            raise HTTPException(status_code=401, detail="invalid admin key")
+
+    @app.post("/configs", status_code=201)
+    def create_config(req: ConfigSpecRequest, _: None = Depends(authenticate_admin)) -> dict:
+        # Provision a customer at runtime: validate + mint secret + persist + hot-register.
+        # The customer is usable on the next request with no restart. `signing_secret` is
+        # returned ONCE -- the caller must store it (their backend signs identity tokens with it).
+        from onboarding.provision import ProvisionError
+
+        try:
+            record = create_customer_from_spec(req.model_dump(), registry, config_dir)
+        except ConfigConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except ProvisionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        return {
+            "status": "registered",
+            "customer_id": record["customer_id"],
+            "public_key": record["public_key"],
+            "signing_secret": record["signing_secret"],
+            "offers": len(record["config"]["interventions"]),
+        }
 
     return app
 

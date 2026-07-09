@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from engine import Interviewer, UserContext, decide
 
+from .config_store import load_customer_file
 from .experiment import CONTROL, assign
 from .identity import IdentityError, verify_identity
 from .registry import Customer
@@ -32,6 +33,37 @@ class SessionNotFound(Exception):
 
 class IdentityRejected(Exception):
     """The customer requires a signed identity token and none valid was supplied."""
+
+
+class ConfigConflict(Exception):
+    """A customer with that id or public key already exists (create-only endpoint)."""
+
+
+def create_customer_from_spec(spec: dict, registry, config_dir: str) -> dict:
+    """Provision a new customer at runtime: validate the spec, mint a signing secret, persist
+    the file (so it survives restarts), and hot-register it into the LIVE registry -- the
+    customer is usable on the next request, no restart. Reuses the exact same builder as the
+    `onboarding.provision` CLI, so the endpoint and the file-drop path can't drift.
+
+    Returns the full record (including the once-shown signing_secret). Raises ConfigConflict on
+    a duplicate id/key, and onboarding.provision.ProvisionError on an invalid spec.
+
+    NOTE: hot-register mutates THIS process's registry. In a multi-instance deployment the
+    written file makes the customer live everywhere on each instance's next restart; immediate
+    cross-instance liveness needs a shared registry (the DB-backed seam) -- see GUIDE §7."""
+    # lazy: keeps the onboarding package off the hot session path's import graph
+    from onboarding.provision import ProvisionError, build_record, write_customer_file
+
+    if not config_dir:
+        raise ProvisionError("OFFBOARD_CONFIG_DIR is not set; cannot persist a new customer")
+    record = build_record(spec)  # validates config + mints signing_secret (or raises)
+    if registry.get_by_key(record["public_key"]) is not None:
+        raise ConfigConflict(f"public_key already registered: {record['public_key']}")
+    if registry.get_by_id(record["customer_id"]) is not None:
+        raise ConfigConflict(f"customer_id already exists: {record['customer_id']}")
+    path = write_customer_file(record, config_dir)  # no-clobber on disk too
+    registry.register(load_customer_file(path))     # hot-register: live, no restart
+    return record
 
 
 def start_session(

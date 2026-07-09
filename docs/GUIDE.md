@@ -353,6 +353,16 @@ export OFFBOARD_CONFIG_DIR=configs
 python -m api.app
 ```
 
+**No-restart alternative:** with `OFFBOARD_ADMIN_KEY` set, `POST /configs` (same spec shape)
+validates, mints the secret, writes the file, and hot-registers the customer into the running
+server — usable on the next request, no restart. See §7 for the multi-instance caveat.
+
+```bash
+curl -X POST https://api.your-domain.com/configs \
+  -H "Authorization: Bearer $OFFBOARD_ADMIN_KEY" -H "Content-Type: application/json" \
+  --data @acme.spec.json     # returns the signing_secret ONCE
+```
+
 ### Validation
 
 `config_from_dict` (and `Interviewer` construction) calls `config.validate()`, which
@@ -511,6 +521,7 @@ diagnosis.
 | `OFFBOARD_RUNS_DIR` | `runs` | where the append-only data asset is written — point at a mounted volume in prod |
 | `OFFBOARD_REDIS_URL` | — | set to use the shared/durable session store (multi-instance / zero-downtime); else in-memory |
 | `OFFBOARD_ROOT_PATH` | `""` | serve under a path prefix behind a proxy (e.g. `/v1`); keep the SDK's base URL in sync |
+| `OFFBOARD_ADMIN_KEY` | — | secret bearer token that enables `POST /configs` (runtime provisioning); unset = endpoint disabled (404) |
 | `OFFBOARD_MODEL_TIMEOUT` | `30` | per-model-call timeout (seconds) |
 | `CHURN_MODEL` | `claude-sonnet-5` | the interviewer model |
 | `PORT` | `8000` | API port |
@@ -525,11 +536,14 @@ Deploying for real (topologies, volumes, the `signing_secret` rule, TLS): see
 - **Custom-taxonomy typing in the SDK.** `Reason` in `sdk/src/types.ts` is the default
   SaaS union. If a customer runs a custom taxonomy, treat `outcome.reason` as an opaque
   string on the client.
-- **Config admin endpoint (no hot-reload yet).** Onboarding is a server-side file drop:
-  `python -m onboarding.provision` writes a validated customer file into `OFFBOARD_CONFIG_DIR`
-  (see §4), which the registry loads **at boot** — so a new/edited customer needs a restart. A
-  `POST /configs` (propose → validate → persist → hot-register) would remove both the restart
-  and filesystem access; the seam (`config_from_dict` validation + registry) is already in place.
+- **Runtime provisioning is single-instance.** Two ways to onboard a customer: the file drop
+  (`python -m onboarding.provision`, loaded **at boot** — needs a restart) and **`POST /configs`**
+  (admin-key auth via `OFFBOARD_ADMIN_KEY`), which validates, mints the signing secret, persists
+  the file, and **hot-registers into the live process — no restart**. The remaining edge:
+  hot-register mutates one process's in-memory registry, so on a multi-instance deployment a
+  customer added via `POST /configs` is live immediately on the instance that handled it and
+  everywhere else on each instance's next restart (via the persisted file). Immediate
+  cross-instance liveness needs a shared/DB-backed registry — the seam `config_store` is shaped for.
 - **Session store durability.** Both backends now exist: in-memory (default, single instance)
   and a shared/durable Redis store selected via `OFFBOARD_REDIS_URL` (multi-instance,
   zero-downtime deploys). See [DEPLOY.md](DEPLOY.md#session-state).
