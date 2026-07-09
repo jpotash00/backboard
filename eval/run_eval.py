@@ -42,9 +42,13 @@ class Transcript:
     outcome: Optional[Outcome] = None
 
 
-def run_persona(persona: Persona, client) -> Transcript:
-    """Play one full interview, blind. Returns the transcript with the final Outcome."""
-    interviewer = Interviewer(ACME, persona.user, client=client)
+def run_persona(persona: Persona, client, interviewer_model=None,
+                persona_model=None) -> Transcript:
+    """Play one full interview, blind. Returns the transcript with the final Outcome.
+
+    interviewer_model / persona_model let the audit rig drive the two sides with
+    different models (the cross-model collusion check); None keeps the defaults."""
+    interviewer = Interviewer(ACME, persona.user, client=client, model=interviewer_model)
     t = Transcript(persona_id=persona.id, hidden_reason=persona.hidden_reason)
 
     question = interviewer.open()
@@ -55,7 +59,7 @@ def run_persona(persona: Persona, client) -> Transcript:
     while outcome is None:
         if question is None:
             break
-        reply = persona.respond(question, ACME, client=client)
+        reply = persona.respond(question, ACME, client=client, model=persona_model)
         t.turns.append(Turn("churner", reply))
         question, outcome = interviewer.turn(reply)
         if question is not None:

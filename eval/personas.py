@@ -84,12 +84,14 @@ class Persona:
     # Runtime roleplay state (populated when the persona is run).
     _history: list = field(default_factory=list, repr=False)
 
-    def respond(self, interviewer_message: str, config, client=None) -> str:
+    def respond(self, interviewer_message: str, config, client=None, model=None) -> str:
         """Reply in character to the interviewer's latest question."""
         client = client or anthropic.Anthropic()
         self._history.append({"role": "user", "content": interviewer_message})
         resp = client.messages.create(
-            model=PERSONA_MODEL,
+            # model override drives the cross-model arm: play the churner with a different
+            # model than the interviewer so a same-model shared prior can't inflate the score.
+            model=model or PERSONA_MODEL,
             max_tokens=1200,  # room for a thinking block plus the short spoken reply
             system=PERSONA_SYSTEM.format(
                 product_name=config.product_name,

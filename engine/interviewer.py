@@ -92,6 +92,25 @@ guess wearing a corroboration badge. If you have not actually ruled the rival ou
 not yet know: ask one more question aimed squarely at the difference, or diagnose with
 confidence BELOW 0.6 so the caller falls back rather than acting on a coin flip.
 
+THE "NEED ENDED" TRAP -- the single most over-diagnosed mistake. A drop in usage is NOT
+evidence the need is over. The exact same dead-usage trace appears when the need is still
+ALIVE but BLOCKED: the product broke and they gave up (product_quality), the price stopped
+penciling so they throttled themselves (price_value_mismatch), or they finished moving to a
+competitor (switched_competitor). "Need genuinely ended" is the one BENIGN reading among
+several fixable ones, which makes it the lazy default -- and picking it wrongly is the most
+expensive error you can make: you log "nothing we could have done" over a churn we could
+have saved, and the offer (a pause) is useless to someone who actually needed support, a
+discount, or a fix. So NEVER resolve to a "need is over" reason from a usage cliff plus a
+vague "I just stopped using it". You must hear, in their OWN words, that the underlying job
+is genuinely done -- the project wrapped, the role changed, the season ended. If all you
+have is that they stopped, assume the need may still be there and something drove them off,
+and TEST it with a need-counterfactual (not a price one): "if it did exactly what you needed,
+reliably, would you still want this?" Someone whose need truly ended shrugs it off; someone
+who was blocked lights up and the real obstacle -- the broken feature, the missing capability,
+the competitor, the price -- surfaces. Until you have separated "done with it" from "driven
+off it", the benign reading is unproven: diagnose it only on an explicit end-of-need in their
+words, otherwise keep confidence BELOW 0.6.
+
 TAXONOMY -- you must resolve to exactly one:
 {taxonomy}
 
@@ -139,10 +158,13 @@ Usage: {usage_summary}{signals}"""
 
 
 class Interviewer:
-    def __init__(self, config: ProductConfig, user: UserContext, client=None):
+    def __init__(self, config: ProductConfig, user: UserContext, client=None, model=None):
         self.config = config.validate()
         self.user = user
         self.client = client or anthropic.Anthropic()
+        # model override lets the eval pit the interviewer against personas played by a
+        # DIFFERENT model (the cross-model collusion check); defaults to the module MODEL.
+        self.model = model or MODEL
         self.messages: list[MessageParam] = []
         self.turns = 0
 
@@ -184,20 +206,28 @@ class Interviewer:
              "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": self._user_block()},
         ]
-        resp = self.client.messages.create(
-            model=MODEL, max_tokens=2000, system=system, messages=self.messages,
-        )
-        # claude-sonnet-5 may return thinking block(s) before the text; concatenate the
-        # text blocks rather than assuming content[0] is text.
-        text = _text_of(resp).strip()
-        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return {"action": "diagnose", "reason": "unknown", "confidence": 0.0,
-                    "evidence": "model returned unparseable output",
-                    "cover_story": "no_reason_given", "savable": False,
-                    "message": "Thanks for letting us know."}
+        # One retry before falling back: modern models occasionally wrap the JSON in prose
+        # or overrun the token budget mid-object. A single clean re-ask (we never append the
+        # bad attempt to the transcript) rescues most of these transient flakes -- otherwise
+        # they silently score as an "unknown" miss in the eval AND, in production, dump a real
+        # churner to the generic fallback flow. The fallback's distinctive evidence string is
+        # what the audit rig uses to bucket a genuine parse-failure apart from a real miss.
+        for _ in range(2):
+            resp = self.client.messages.create(
+                model=self.model, max_tokens=2000, system=system, messages=self.messages,
+            )
+            # claude-sonnet-5 may return thinking block(s) before the text; concatenate the
+            # text blocks rather than assuming content[0] is text.
+            text = _text_of(resp).strip()
+            text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                continue
+        return {"action": "diagnose", "reason": "unknown", "confidence": 0.0,
+                "evidence": "model returned unparseable output",
+                "cover_story": "no_reason_given", "savable": False,
+                "message": "Thanks for letting us know."}
 
     def open(self) -> str:
         """First question. Deliberately open -- we want the cover story on the record,

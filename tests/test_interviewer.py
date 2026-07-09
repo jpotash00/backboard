@@ -98,16 +98,38 @@ def test_max_turns_forces_a_diagnosis_even_if_model_asks():
     assert outcome.turns_used == MAX_TURNS
 
 
-def test_unparseable_output_degrades_to_unknown():
+def test_unparseable_output_degrades_to_unknown_after_retry():
+    # _call retries ONCE before falling back, so a persistent parse failure needs two bad
+    # outputs on the diagnosing turn before it degrades to the unknown/0.0 fallback.
     client = FakeClient([
-        "not json at all",   # open()
-        "still not json",    # turn 1
+        json.dumps({"action": "ask", "message": "?"}),  # open()
+        "not json at all",   # turn 1, attempt 1
+        "still not json",    # turn 1, attempt 2 (retry)
     ])
     iv = Interviewer(_config(), _user(), client=client)
-    iv.open()  # falls back to default question, no crash
+    iv.open()
     q, outcome = iv.turn("hi")
     assert outcome.reason == "unknown"
     assert outcome.confidence == 0.0
+    assert outcome.evidence == "model returned unparseable output"
+
+
+def test_one_parse_flake_is_rescued_by_the_retry():
+    # A single transient flake followed by clean JSON must recover -- NOT score as unknown.
+    # This is the whole point of the retry: one bad decode shouldn't cost a real diagnosis.
+    good = json.dumps({"action": "diagnose", "reason": "product_quality", "confidence": 0.8,
+                       "evidence": "e", "cover_story": "not_using_it", "savable": True,
+                       "message": "ok"})
+    client = FakeClient([
+        json.dumps({"action": "ask", "message": "?"}),  # open()
+        "oops not json",  # turn 1, attempt 1 flakes
+        good,             # turn 1, attempt 2 (retry) succeeds
+    ])
+    iv = Interviewer(_config(), _user(), client=client)
+    iv.open()
+    q, outcome = iv.turn("hi")
+    assert outcome.reason == "product_quality"
+    assert outcome.confidence == 0.8
 
 
 def test_code_fenced_json_is_stripped():
