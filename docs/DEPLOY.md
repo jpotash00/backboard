@@ -167,6 +167,94 @@ docker run -p 8000:8000 \
 
 Health check: `GET /health` → `{"status":"ok"}` (needs no auth, makes no model call).
 
+## Go-live runbook (first production customer)
+
+The system has two publish surfaces — **you host the engine API**; **the customer installs the
+npm SDK** that calls it. Do them in this order; the SDK is inert until the API is live.
+
+### 0. Decide, once
+- A domain for the API, e.g. `api.offboard.dev` (must match the SDK's base URL — see step 3).
+- An `ANTHROPIC_API_KEY`.
+- An npm account, and the package name (`offboard`, or `@your-org/offboard` if taken).
+
+### 1. Provision the customer on disk
+One JSON file per customer in your config dir (schema in `api/config_store.py`; template in
+`configs/acme.json`):
+
+```jsonc
+{
+  "customer_id": "acme",
+  "public_key": "pk_live_acme_9f3k…",     // public; ships in their browser
+  "signing_secret": "…64 hex chars…",      // REQUIRED in prod: openssl rand -hex 32
+  "allowed_origins": ["https://app.acme.com"],
+  "config": { /* ProductConfig: taxonomy, offer menu, policy */ }
+}
+```
+
+Generate the secret with `openssl rand -hex 32`. The `config` block can come from the
+`onboarding/` proposer or be hand-authored from `configs/acme.json`. Keep these files private:
+they carry the signing secret.
+
+### 2. Deploy the engine API
+Any container host works (the image is standard). Fly.io, concretely:
+
+```bash
+fly launch --no-deploy                       # detects the Dockerfile, writes fly.toml
+fly volumes create offboard_data --size 1    # persistent disk for /data (runs + configs)
+fly redis create                             # managed Redis -> copy the redis:// URL
+fly secrets set \
+  ANTHROPIC_API_KEY=sk-ant-… \
+  OFFBOARD_REDIS_URL=redis://…@…:6379 \
+  OFFBOARD_CONFIG_DIR=/data/configs \
+  OFFBOARD_RUNS_DIR=/data/runs
+# mount the volume at /data in fly.toml, then put the customer file on it:
+fly deploy
+fly ssh console -C "mkdir -p /data/configs"
+cat configs/acme.json | fly ssh console -C "tee /data/configs/acme.json >/dev/null"
+fly deploy                                   # restart so the registry loads the config
+fly certs create api.offboard.dev            # + point the DNS record it prints
+curl https://api.offboard.dev/health         # -> {"status":"ok"}
+```
+
+(Render/Railway are the same shape: Docker service + a persistent disk + a managed Redis +
+the four env vars. Put the config files on the disk, not in the image — they hold secrets.)
+
+### 3. Point the SDK at prod, then publish to npm
+If your domain is not `api.offboard.dev`, set `DEFAULT_API_BASE_URL` in `sdk/src/index.ts` to
+your domain (no `/v1` unless you also set `OFFBOARD_ROOT_PATH`). Then:
+
+```bash
+cd sdk
+npm login && npm whoami
+npm pack --dry-run          # confirm only dist/ + README ship — never src/ or the engine
+npm version minor
+npm publish                 # prepack builds dist/; access:public is configured
+```
+
+### 4. Hand the customer their integration
+```ts
+import Offboard from "offboard";
+Offboard.init({ publicKey: "pk_live_acme_9f3k…" });     // the key from step 1
+
+// on their "Cancel" click:
+Offboard.showCancelFlow({
+  userId: currentUser.id,
+  identityToken: await fetch("/api/offboard-token").then(r => r.text()), // minted on THEIR backend
+  theme: { adoptHostTokens: true },
+  onAccept: (o) => applyViaStripe(o.intervention!.id),   // Offboard never touches billing
+  onCancel: () => finishCancellation(),
+});
+```
+Their backend mints `identityToken` by HMAC-signing the user's economics with the shared
+`signing_secret` (the scheme is `api/identity.py`; document it for them). Without it, a key that
+has a signing secret rejects the session — which is the point.
+
+### 5. Verify prod end-to-end
+Run one real cancellation against the live URL and confirm a row lands in
+`/data/runs/resolutions.jsonl`. Later, have their billing system POST retention truth to
+`/outcomes`; then `python -m learning.recalibrate` and the holdout readout turn that into
+measured lift.
+
 ## What is NOT deployed here
 
 The Python engine and the interviewer prompts are **server-side only** — they never ship to npm
