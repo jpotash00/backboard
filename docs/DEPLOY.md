@@ -258,8 +258,9 @@ Offboard.showCancelFlow({
 });
 ```
 Their backend mints `identityToken` by HMAC-signing the user's economics with the shared
-`signing_secret` (the scheme is `api/identity.py`; document it for them). Without it, a key that
-has a signing secret rejects the session — which is the point.
+`signing_secret`. Hand them **[IDENTITY_TOKENS.md](IDENTITY_TOKENS.md)** — it's the complete
+customer-facing spec with a copy-paste Node signer (verified byte-identical to `api/identity.py`).
+Without a token, a key that has a signing secret rejects the session — which is the point.
 
 ### 5. Verify prod end-to-end
 Run one real cancellation against the live URL and confirm a row lands in

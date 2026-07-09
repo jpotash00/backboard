@@ -1,0 +1,54 @@
+# Fly.io deploy config for the Offboard engine API.
+# This is the "topology B (multiple instances + Redis)" shape from docs/DEPLOY.md.
+#
+# Before first deploy, fill in <APP_NAME> and <REGION>, then:
+#   fly volumes create offboard_data --size 1 --region <REGION>
+#   fly redis create                                    # copy the redis:// URL
+#   fly secrets set \
+#     ANTHROPIC_API_KEY=sk-ant-... \
+#     OFFBOARD_REDIS_URL=redis://...@...:6379 \
+#     OFFBOARD_ADMIN_KEY=$(openssl rand -hex 24)        # enables POST/GET /configs + /admin
+#   fly deploy
+# Put the per-customer config files on the volume (they hold signing secrets — never in git/image):
+#   fly ssh console -C "mkdir -p /data/configs"
+#   cat configs/<customer>.json | fly ssh console -C "tee /data/configs/<customer>.json >/dev/null"
+#   fly deploy   # restart so the registry loads it   (or use POST /configs for no-restart provisioning)
+
+app = "<APP_NAME>"
+primary_region = "<REGION>"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Non-secret config only. Secrets go through `fly secrets set` (above), never here.
+  OFFBOARD_CONFIG_DIR = "/data/configs"
+  OFFBOARD_RUNS_DIR   = "/data/runs"
+  PORT                = "8000"
+
+[[mounts]]
+  source      = "offboard_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https   = true
+  auto_stop_machines  = false   # keep 1 always-on: in-flight cancel sessions live in Redis, but
+  auto_start_machines = true    # a cold start mid-interview still adds latency to a live user.
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 40
+    hard_limit = 60
+
+[[http_service.checks]]
+  method   = "get"
+  path     = "/health"
+  interval = "15s"
+  timeout  = "3s"
+  grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
