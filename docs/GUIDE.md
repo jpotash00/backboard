@@ -228,17 +228,16 @@ Every completed session is appended to `runs/sessions.jsonl` (full transcript + 
 ## 4. Onboarding a company (the config model)
 
 > **You rarely author a config from scratch — you review a proposed one.** The
-> `onboarding.propose_config` step takes messy input (pasted pricing/docs + the list of
-> saves the company is authorized to offer) and returns a **validated `ProductConfig`** to
-> approve or tweak. The LLM only *structures* the input; the taxonomy and policy come from
-> validated defaults, and `validate()` is the backstop. Scraping is a pluggable adapter
-> (`onboarding.adapters`), not a requirement — the paste path always works.
+> `onboarding.propose_config` step takes your pasted pricing/docs plus the list of saves
+> you're authorized to offer, and returns a **validated `ProductConfig`** to approve or
+> tweak. The LLM only *structures* the input; the taxonomy and policy come from validated
+> defaults, and `validate()` is the backstop.
 >
 > ```python
 > from onboarding import propose_config, ProposalInput
 > proposal = propose_config(ProposalInput(
 >     offers=["30% off for 3 months", "free onboarding call", "pause up to 2 months"],
->     product_text=pasted_pricing_and_docs,   # or an adapter's .gather()
+>     product_text=pasted_pricing_and_docs,
 > ))
 > proposal.config      # a validated ProductConfig, ready to review
 > proposal.notes       # assumptions the model made — what the human should check
@@ -336,8 +335,8 @@ python -m api.app
 `config_from_dict` (and `Interviewer` construction) calls `config.validate()`, which
 **fails fast** on an inconsistent config — an unknown reason id in the policy, a
 confidence floor outside `[0, 1]`, duplicate ids, a reason with no policy entry. A broken
-stored config raises at load, never mid-interview. Accept configs from a form or a scraper
-with confidence.
+stored config raises at load, never mid-interview. Accept configs from a form or the
+proposer with confidence.
 
 ---
 

@@ -3,12 +3,13 @@
 from eval.scoring import Result, baseline_reason, crux_split_ok, score
 
 
-def r(pid, hidden, cover, diagnosed, conf=0.9, turns=1, iv="x", exp="x", misleading=False):
+def r(pid, hidden, cover, diagnosed, conf=0.9, turns=1, iv="x", exp="x",
+      misleading=False, confirmer=False):
     return Result(
         persona_id=pid, hidden_reason=hidden, cover_story=cover,
         diagnosed_reason=diagnosed, confidence=conf, turns_used=turns,
         intervention_type=iv, expected_intervention_type=exp,
-        misleading_tell=misleading,
+        misleading_tell=misleading, false_confirmer=confirmer,
     )
 
 
@@ -86,6 +87,20 @@ def test_misleading_tell_accuracy_scored_separately():
     # aggregate accuracy is higher than the misleading-tell slice -- the shortcut hides
     # in the aggregate but is exposed by the separate metric.
     assert s.diagnostic_accuracy > s.misleading_tell_accuracy
+
+
+def test_false_confirmer_accuracy_scored_separately():
+    results = [
+        # acquiescent persona, interviewer stayed open and recovered the truth
+        r(13, "missing_capability", "too_expensive", "missing_capability", confirmer=True),
+        # acquiescent persona, interviewer led ("is it the price?") -> false confirmation
+        r(14, "product_quality", "not_using_it", "value_ended", confirmer=True),
+        # honest persona -> excluded from the anti-leading metric
+        r(1, "never_activated", "too_expensive", "never_activated"),
+    ]
+    s = score(results)
+    assert s.n_false_confirmer == 2
+    assert s.false_confirmer_accuracy == 0.5  # 1 of 2; the led one was lost
 
 
 def test_crux_split():

@@ -36,6 +36,9 @@ class Result:
     # True when the behavioral tell points AWAY from the truth (see Persona.misleading_tell).
     # Scored separately so the tell-reader shortcut can't hide inside the aggregate.
     misleading_tell: bool = False
+    # True for acquiescent personas that confirm any label offered (see Persona.false_confirmer).
+    # Accuracy here is a proxy for non-leading questioning discipline: lead them and you lose.
+    false_confirmer: bool = False
 
     @property
     def reason_correct(self) -> bool:
@@ -69,12 +72,16 @@ class Scores:
     # Anti-telegraphing control: accuracy on the personas whose behavioral tell MISLEADS.
     # A model that just reads usage_summary craters here even if the aggregate looks fine.
     misleading_tell_accuracy: float
+    # Anti-leading control: accuracy on acquiescent personas. Falls when the interviewer asks
+    # leading/menu questions (they confirm the wrong label); a proxy for questioning bias.
+    false_confirmer_accuracy: float
     # Baseline for the delta.
     baseline_diagnostic_accuracy: float
     baseline_cover_story_penetration: float
     n: int
     n_traps: int
     n_misleading: int
+    n_false_confirmer: int
 
 
 def baseline_reason(cover_story: str) -> Reason:
@@ -88,6 +95,7 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
     wrong = [r for r in results if not r.reason_correct]
     traps = [r for r in results if r.is_cover_story_trap]
     misleading = [r for r in results if r.misleading_tell]
+    confirmers = [r for r in results if r.false_confirmer]
 
     conf_correct = [r.confidence for r in correct]
     conf_wrong = [r.confidence for r in wrong]
@@ -109,6 +117,9 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
         misleading_tell_accuracy=_rate(
             sum(r.reason_correct for r in misleading), len(misleading)
         ),
+        false_confirmer_accuracy=_rate(
+            sum(r.reason_correct for r in confirmers), len(confirmers)
+        ),
         baseline_diagnostic_accuracy=_rate(
             sum(baseline_reason(r.cover_story) == r.hidden_reason for r in results), n
         ),
@@ -119,6 +130,7 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
         n=n,
         n_traps=len(traps),
         n_misleading=len(misleading),
+        n_false_confirmer=len(confirmers),
     )
 
 

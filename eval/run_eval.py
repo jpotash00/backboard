@@ -22,6 +22,7 @@ from typing import Optional
 import anthropic
 
 from engine import Interviewer, Outcome, decide
+from engine.interviewer import MAX_TURNS
 from .configs import ACME
 from .personas import Persona, build_personas
 from .scoring import Result, baseline_reason, crux_split_ok, score
@@ -82,6 +83,7 @@ def to_result(persona: Persona, transcript: Transcript) -> Result:
         intervention_type=iv_type,
         expected_intervention_type=persona.expected_intervention_type,
         misleading_tell=persona.misleading_tell,
+        false_confirmer=persona.false_confirmer,
     )
 
 
@@ -123,13 +125,14 @@ def print_summary(results: list[Result]) -> None:
     print("#  MILESTONE 1 SCORES")
     print("#" * 78)
 
-    print("\n  per persona:  (trap = dropdown gets it wrong; tell = tell MISLEADS)")
+    print("\n  per persona:  (trap = dropdown wrong; tell = tell MISLEADS; lead = punishes leading Qs)")
     print(f"  {'#':>2}  {'true reason':<21} {'diagnosed':<21} {'conf':>5} "
-          f"{'trap':>4} {'tell':>5} {'ok':>3}")
+          f"{'trap':>4} {'tell':>5} {'lead':>5} {'ok':>3}")
     for r in sorted(results, key=lambda r: r.persona_id):
         print(f"  {r.persona_id:>2}  {r.hidden_reason:<21} {r.diagnosed_reason:<21} "
               f"{r.confidence:>5.2f} {'yes' if r.is_cover_story_trap else ' - ':>4} "
               f"{'lies' if r.misleading_tell else ' - ':>5} "
+              f"{'yes' if r.false_confirmer else ' - ':>5} "
               f"{'✅' if r.reason_correct else '❌':>3}")
 
     print(f"\n  {'metric':<34}{'interviewer':>14}{'dropdown':>12}")
@@ -145,13 +148,17 @@ def print_summary(results: list[Result]) -> None:
         print(f"  {'misleading-tell accuracy':<34}"
               f"{s.misleading_tell_accuracy:>13.0%}{'':>12}"
               f"   <- n={s.n_misleading}; anti-telegraphing")
+    if s.n_false_confirmer:
+        print(f"  {'false-confirmer accuracy':<34}"
+              f"{s.false_confirmer_accuracy:>13.0%}{'':>12}"
+              f"   <- n={s.n_false_confirmer}; anti-leading (open Qs vs menus)")
 
     print(f"\n  calibration:  mean conf when RIGHT = {s.mean_conf_correct:.2f}   "
           f"when WRONG = {s.mean_conf_wrong:.2f}   "
           f"(gap {s.mean_conf_correct - s.mean_conf_wrong:+.2f}, want positive)")
     print(f"                confident-and-wrong (conf >= {floor}): "
           f"{s.confident_and_wrong}  (want 0 -- these are the dangerous ones)")
-    print(f"  mean turns used: {s.mean_turns:.1f} / {3}")
+    print(f"  mean turns used: {s.mean_turns:.1f} / {MAX_TURNS}")
 
     print("\n  " + "-" * 58)
     crux_str = {True: "✅ SPLIT", False: "❌ NOT SPLIT", None: "n/a"}[crux]

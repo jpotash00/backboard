@@ -6,8 +6,8 @@ The taxonomy and the whole policy rulebook come from **validated defaults**, so 
 proposal is sound by construction -- and `config.validate()` is the backstop before a human
 ever sees it. The LLM never invents policy; it fills a form.
 
-What can't be scraped or inferred is the **offer menu** -- what saves the company is
-authorized to make. That's a business decision, so it's a required input, not a guess.
+What can't be inferred is the **offer menu** -- what saves the company is authorized to
+make. That's a business decision, so it's a required input, not a guess.
 """
 
 import json
@@ -20,7 +20,6 @@ from engine import (
     DEFAULT_REASONS,
     Intervention,
     ProductConfig,
-    config_from_dict,
 )
 from engine.interviewer import _text_of
 
@@ -38,11 +37,11 @@ class ProposalError(Exception):
 
 @dataclass
 class ProposalInput:
-    # The company's authorized save offers, free-form. REQUIRED -- can't be scraped, it's a
-    # business decision. e.g. ["50% off for 3 months", "free 15-min setup call", "pause up to 3 months"]
+    # The company's authorized save offers, free-form. REQUIRED -- a business decision, not
+    # something to infer. e.g. ["50% off for 3 months", "free 15-min setup call", "pause up to 3 months"]
     offers: list[str]
-    # Pasted pricing page / docs / help-center text, or the output of an adapter. Optional
-    # but the richer it is, the better the extracted facts.
+    # Pasted pricing page / docs / help-center text. Optional, but the richer it is, the
+    # better the extracted facts.
     product_text: str = ""
     # Optional hint if the text doesn't name the product.
     product_name: str = ""

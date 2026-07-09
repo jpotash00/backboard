@@ -31,7 +31,10 @@ THE REAL REASON YOU'RE LEAVING (your secret -- do not state it outright unprompt
 THE STORY YOU LEAD WITH (socially safe, what you say first)
 "{opening_line}"
 
-HOW YOU BEHAVE
+{behavior}"""
+
+# Default psychology: honest under it all, cracks for a perceptive question.
+DEFAULT_BEHAVIOR = """HOW YOU BEHAVE
 - You are mildly annoyed and in a hurry. Keep replies to 1-2 short sentences.
 - Your FIRST reply must be your cover story, close to the line above.
 - Do NOT volunteer the real reason. If pushed with a lazy or salesy question, deflect
@@ -40,6 +43,21 @@ HOW YOU BEHAVE
   perceptive, warm question that gets at the truth -- or points to something specific
   about how you've actually used the product -- you will admit the real reason, a bit
   reluctantly. Real people crack when someone actually gets it.
+- Never break character. Never mention that you are an AI or that this is a test."""
+
+# Acquiescent psychology: the anti-leading control. This person confirms whatever label
+# they're handed, so a LEADING interviewer extracts a false confirmation (wrong diagnosis)
+# and only an OPEN question surfaces the truth (right diagnosis).
+FALSE_CONFIRMER_BEHAVIOR = """HOW YOU BEHAVE
+- You are mildly annoyed, in a hurry, and conflict-avoidant. Keep replies to 1-2 short sentences.
+- Your FIRST reply must be your cover story, close to the line above.
+- You are AGREEABLE TO A FAULT. If the interviewer NAMES a reason, offers you a list of
+  reasons, or asks a yes/no or either/or question that contains a plausible reason, you
+  simply AGREE with whatever they put in front of you to end the chat faster -- even when
+  it is NOT the real reason. You confirm the label; you never correct it.
+- The real reason comes out ONLY if they ask a genuinely OPEN question that names no reason
+  at all (e.g. "what changed?", "walk me through the last time you used it"). Given a truly
+  open door, you'll tell the truth, a bit offhandedly.
 - Never break character. Never mention that you are an AI or that this is a test."""
 
 
@@ -59,6 +77,10 @@ class Persona:
     # corroborated. A model that just reads the tell line fails these; only the
     # conversation recovers the truth. This is the anti-telegraphing control.
     misleading_tell: bool = False
+    # True for acquiescent personas that confirm any label they're handed (see
+    # FALSE_CONFIRMER_BEHAVIOR). They punish LEADING questions: a menu-offering interviewer
+    # gets a false confirmation and diagnoses wrong; only open questions recover the truth.
+    false_confirmer: bool = False
     # Runtime roleplay state (populated when the persona is run).
     _history: list = field(default_factory=list, repr=False)
 
@@ -74,6 +96,7 @@ class Persona:
                 personality=self.personality,
                 hidden_description=self.hidden_description,
                 opening_line=self.opening_line,
+                behavior=FALSE_CONFIRMER_BEHAVIOR if self.false_confirmer else DEFAULT_BEHAVIOR,
             ),
             messages=self._history,
         )
@@ -325,6 +348,144 @@ def build_personas() -> list[Persona]:
                               "Long-tenured, fully activated power user.",
             ),
             expected_intervention_type="roadmap",
+            misleading_tell=True,
+        ),
+        # ------------------------------------------------------------------------------
+        # False-confirmer personas (anti-leading control). Psychology, not data, is the
+        # trap: they AGREE with any reason the interviewer names. The behavioral tell is
+        # deliberately NEUTRAL (consistent with several reasons), so the ONLY way to get
+        # these right is to ask OPEN questions. A leading interviewer that offers "is it
+        # the price?" earns a false yes and diagnoses wrong. These score how disciplined
+        # the interviewer's questioning is -- the bias we're trying to design out.
+        # ------------------------------------------------------------------------------
+        Persona(
+            id=13,
+            hidden_reason="missing_capability",
+            cover_story="too_expensive",
+            opening_line="It's just gotten a bit too expensive for us.",
+            personality="A busy operator who wants out of this chat. Leads with price because "
+                        "it's the easy thing to say; will nod along to anything to wrap up.",
+            hidden_description="The real reason is that you need SQL access to your raw event "
+                              "data for a custom model, and Acme simply doesn't expose it -- "
+                              "you asked and it's not on the roadmap. Price is just the easy "
+                              "line. If someone asks an open question about what you were "
+                              "trying to DO, you'll mention the SQL access; if they just ask "
+                              "'is it the price?', you'll agree and leave.",
+            user=UserContext(
+                user_id="u13", plan="Growth", mrr=199, tenure_days=200,
+                logins_last_30d=12, activated=True,
+                # Neutral tell: a steady activated user reveals nothing decisive on its own.
+                usage_summary="Activated, steady moderate use throughout. Nothing unusual or "
+                              "decisive in the behavioral data -- consistent with several "
+                              "different reasons for leaving.",
+            ),
+            expected_intervention_type="roadmap",
+            false_confirmer=True,
+        ),
+        Persona(
+            id=14,
+            hidden_reason="product_quality",
+            cover_story="not_using_it",
+            opening_line="Honestly I've just not been using it, so I'll cancel.",
+            personality="A tired user who will agree with whatever gets them out fastest. "
+                        "Leads with 'not using it'; happy to let any explanation stand.",
+            hidden_description="You stopped using it because exports kept timing out and "
+                              "silently failing -- you'd queue a report and it just never "
+                              "arrived, over and over. The need is still real. If asked openly "
+                              "what happened the last time you tried to use it, you'll describe "
+                              "the failed exports; if asked 'did the need just wrap up?', you'll "
+                              "say 'yeah, pretty much' and leave.",
+            user=UserContext(
+                user_id="u14", plan="Growth", mrr=199, tenure_days=220,
+                logins_last_30d=4, activated=True,
+                # Neutral tell: a gentle taper fits value_ended, product_quality, or a switch.
+                usage_summary="Activated. Use tapered off gradually over the last month -- a "
+                              "soft decline, not a cliff. No tickets on file. Ambiguous on its own.",
+            ),
+            expected_intervention_type="support",
+            false_confirmer=True,
+        ),
+        # ------------------------------------------------------------------------------
+        # More misleading-tell personas -- broadening the set beyond n=2 so the metric is
+        # a real rate, not noise. Several deliberately hide behind the SAME ambiguous signal
+        # (a usage decline), because a cliff looks identical whether the need ended, the
+        # product broke, they switched, or the price stopped penciling. That collision is
+        # exactly what the interviewer's "rule out the alternative" discipline must survive.
+        # ------------------------------------------------------------------------------
+        Persona(
+            id=15,
+            hidden_reason="switched_competitor",
+            cover_story="not_using_it",
+            opening_line="I'm just not really using it these days, so I'll cancel.",
+            personality="Someone who already finished migrating to a competitor weeks ago. "
+                        "Matter-of-fact; frames the wind-down as 'not using it' rather than "
+                        "mentioning the switch unless asked where they went.",
+            hidden_description="You moved to Mixpanel and completed the cutover about three "
+                              "weeks ago -- that's WHY your usage here fell off a cliff, not "
+                              "because the need ended. The need is alive and well; it just "
+                              "lives in Mixpanel now.",
+            user=UserContext(
+                user_id="u15", plan="Growth", mrr=199, tenure_days=260,
+                logins_last_30d=1, activated=True,
+                # Tell MISLEADS: a low-usage cliff reads as value_ended (need over) -- and
+                # value_ended's rule (logins < 3) corroborates the WRONG reason. Same surface
+                # as persona 11, opposite truth. Only "where did you go?" separates them.
+                usage_summary="Was a steady daily user, then dropped to near-zero ~3 weeks ago. "
+                              "Minimal activity since. Looks like the need simply wound down.",
+            ),
+            expected_intervention_type="roadmap",
+            misleading_tell=True,
+        ),
+        Persona(
+            id=16,
+            hidden_reason="missing_capability",
+            cover_story="too_complicated",
+            opening_line="It just felt a bit too complicated for what I needed.",
+            personality="An early-stage user who tried the one thing they came for, found it "
+                        "missing, and bailed fast. Blames 'complexity' because it's easier "
+                        "than explaining the gap.",
+            hidden_description="You connected a source and immediately went looking for funnel "
+                              "conversion analysis by segment -- the whole reason you signed up "
+                              "-- and Acme doesn't do it. You gave up after a few sessions. It "
+                              "wasn't too complicated; the capability you needed isn't there.",
+            user=UserContext(
+                user_id="u16", plan="Starter", mrr=49, tenure_days=45,
+                logins_last_30d=2, activated=True,
+                # Tell MISLEADS: a handful of logins then nothing reads like never_activated /
+                # a user who never got going -- but they ARE activated (connected a source),
+                # so a diagnosis of never_activated is contradicted by activated == true. The
+                # prose bait is "barely used it"; the structured truth is a capability gap.
+                usage_summary="Connected a data source, then only a few short sessions before "
+                              "going quiet. Low overall engagement -- looks like someone who "
+                              "never really got going.",
+            ),
+            expected_intervention_type="roadmap",
+            misleading_tell=True,
+        ),
+        Persona(
+            id=17,
+            hidden_reason="price_value_mismatch",
+            cover_story="not_using_it",
+            opening_line="I've kind of stopped using it, so I might as well cancel.",
+            personality="A cost-conscious user who throttled their own usage while deciding "
+                        "whether to keep paying. Leads with 'not using it'; the money is the "
+                        "real driver but they don't say so first.",
+            hidden_description="You got real value and would happily keep using it -- but the "
+                              "Growth price stopped penciling out, so you consciously cut back "
+                              "usage while you decided, and now you're cancelling over cost. "
+                              "The drop in usage is a SYMPTOM of the price problem, not a sign "
+                              "the need ended.",
+            user=UserContext(
+                user_id="u17", plan="Growth", mrr=199, tenure_days=200,
+                logins_last_30d=2, activated=True,
+                # Tell MISLEADS: another low-usage cliff -> value_ended (logins < 3 corroborates
+                # the WRONG reason). But price_value_mismatch (activated == true) is also
+                # corroborated, so the data can't separate them -- only asking WHY usage
+                # dropped ("would you stay if the price worked?") reveals cost as the driver.
+                usage_summary="Activated, was a regular user, then usage fell to near-zero over "
+                              "the past few weeks. Reads like the need tailing off.",
+            ),
+            expected_intervention_type="discount",
             misleading_tell=True,
         ),
     ]

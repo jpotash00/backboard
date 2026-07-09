@@ -9,7 +9,6 @@ import pytest
 
 from engine import decide, Outcome, UserContext
 from onboarding import ProposalError, ProposalInput, propose_config
-from onboarding.adapters import PasteAdapter, UrlScrapeAdapter
 
 
 @dataclass
@@ -107,9 +106,3 @@ def test_empty_interventions_raises():
     bad = json.dumps({"product_name": "X", "interventions": []})
     with pytest.raises(ProposalError, match="no usable interventions"):
         propose_config(ProposalInput(offers=["x"]), client=FakeClient(bad))
-
-
-def test_paste_adapter_and_scrape_stub():
-    assert PasteAdapter("hello").gather() == "hello"
-    with pytest.raises(NotImplementedError):
-        UrlScrapeAdapter("https://example.com/pricing").gather()
