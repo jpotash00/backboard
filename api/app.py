@@ -108,6 +108,7 @@ def create_app(
     admin_key: Optional[str] = None,
     config_dir: Optional[str] = None,
     trusted_proxy_hops: Optional[int] = None,
+    signup_key: Optional[str] = None,
 ) -> FastAPI:
     registry = registry or default_registry()
     client_factory = client_factory or _lazy_anthropic_factory()
@@ -116,6 +117,11 @@ def create_app(
     # customer files are persisted (defaults to the same dir the registry loaded from).
     admin_key = admin_key if admin_key is not None else os.getenv("OFFBOARD_ADMIN_KEY")
     config_dir = config_dir if config_dir is not None else os.getenv("OFFBOARD_CONFIG_DIR")
+    # Self-serve onboarding surface (POST/GET /onboard). A SEPARATE secret from the master
+    # admin_key: it's create-only (a customer can provision ITSELF but can't list/delete/read
+    # other tenants), and it's rotatable if a shared signup link leaks. Unset = self-serve is
+    # disabled (404), same fail-safe stance as the admin surface.
+    signup_key = signup_key if signup_key is not None else os.getenv("OFFBOARD_SIGNUP_KEY")
     # Backend selection: a shared Redis store (multiple instances / zero-downtime deploys) when
     # OFFBOARD_REDIS_URL is set, else the process-local store (single instance). Both the store
     # AND the rate limiter follow this switch -- a per-process limiter on a multi-instance deploy
@@ -261,11 +267,11 @@ def create_app(
         if not presented or not hmac.compare_digest(presented, admin_key):
             raise HTTPException(status_code=401, detail="invalid admin key")
 
-    @app.post("/configs", status_code=201)
-    def create_config(req: ConfigSpecRequest, _: None = Depends(authenticate_admin)) -> dict:
-        # Provision a customer at runtime: validate + mint secret + persist + hot-register.
-        # The customer is usable on the next request with no restart. `signing_secret` is
-        # returned ONCE -- the caller must store it (their backend signs identity tokens with it).
+    def _provision(req: ConfigSpecRequest) -> dict:
+        # Shared provisioning body for BOTH the admin (/configs) and self-serve (/onboard)
+        # surfaces, so they can't drift. Validate + mint secret + persist + hot-register; the
+        # customer is usable on the next request with no restart. `signing_secret` is returned
+        # ONCE -- the caller must store it (their backend signs identity tokens with it).
         from onboarding.provision import ProvisionError
 
         try:
@@ -282,6 +288,10 @@ def create_app(
             "offers": len(record["config"]["interventions"]),
         }
 
+    @app.post("/configs", status_code=201)
+    def create_config(req: ConfigSpecRequest, _: None = Depends(authenticate_admin)) -> dict:
+        return _provision(req)
+
     @app.get("/configs")
     def list_configs(_: None = Depends(authenticate_admin)) -> dict:
         # Non-secret roster for the admin console. Same gate as create; never returns a secret.
@@ -296,6 +306,33 @@ def create_app(
         if not admin_key:
             raise HTTPException(status_code=404, detail="not found")
         return FileResponse(Path(__file__).parent / "admin.html")
+
+    def authenticate_signup(authorization: str = Header(default="")) -> None:
+        """Self-serve onboarding auth for /onboard. A shared SIGNUP secret (OFFBOARD_SIGNUP_KEY),
+        distinct from the master admin key -- a customer provisions ITSELF with this, but it grants
+        no read/list/delete over other tenants. Disabled (404) when unset, so it never sits open."""
+        if not signup_key:
+            raise HTTPException(status_code=404, detail="not found")
+        prefix = "Bearer "
+        presented = authorization[len(prefix):].strip() if authorization.startswith(prefix) else ""
+        if not presented or not hmac.compare_digest(presented, signup_key):
+            raise HTTPException(status_code=401, detail="invalid signup code")
+
+    @app.post("/onboard", status_code=201)
+    def self_serve_onboard(req: ConfigSpecRequest, _: None = Depends(authenticate_signup)) -> dict:
+        # Customer-driven provisioning: same create-only body as /configs, gated by the signup
+        # code instead of the admin key. This is what lets a customer set themselves up from a
+        # shared link with no operator in the loop.
+        return _provision(req)
+
+    @app.get("/onboard", include_in_schema=False)
+    def onboard_page() -> FileResponse:
+        # The customer-facing signup form. Reads its signup code from the URL (?code=...), so a
+        # shared link is one click to a working form; holds no secret itself. 404 when self-serve
+        # is off, so an unconfigured deployment doesn't advertise a signup surface.
+        if not signup_key:
+            raise HTTPException(status_code=404, detail="not found")
+        return FileResponse(Path(__file__).parent / "onboard.html")
 
     return app
 

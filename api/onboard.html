@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Set up Offboard</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #ffffff; --fg: #18181b; --muted: #71717a;
+    --border: #e4e4e7; --accent: #18181b; --accent-fg: #ffffff;
+    --ok: #16794a; --ok-bg: #e7f6ee; --err: #b4231f; --err-bg: #fbeaea;
+    --radius: 0.65rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #09090b; --panel: #18181b; --fg: #fafafa; --muted: #a1a1aa;
+      --border: #27272a; --accent: #fafafa; --accent-fg: #09090b;
+      --ok: #4ade80; --ok-bg: #0f2c1e; --err: #f87171; --err-bg: #2c1414;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 20px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 5px; }
+  label:first-child { margin-top: 0; }
+  .hint { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  input, textarea, select { width: 100%; padding: 9px 11px; font: inherit; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { resize: vertical; min-height: 58px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .offer { display: grid; grid-template-columns: 160px 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); padding: 9px 16px; }
+  button.ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+  button.sm { padding: 6px 10px; font-size: 13px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .actions { margin-top: 20px; display: flex; gap: 10px; align-items: center; }
+  .status { font-size: 13px; }
+  .status.err { color: var(--err); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .banner { border-radius: var(--radius); padding: 16px; margin-bottom: 20px; font-size: 14px; }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .banner code { color: inherit; font-weight: 700; }
+  .secret { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .secret code { flex: 1; background: rgba(0,0,0,0.06); padding: 8px 10px; border-radius: 6px; overflow-x: auto; white-space: nowrap; }
+  .hidden { display: none; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Set up your cancel flow</h1>
+  <p class="sub">Tell us about your product and the save offers you're willing to make. We generate
+  your keys instantly — no account, no waiting. You only ever see your own setup.</p>
+
+  <div id="result" class="banner ok hidden"></div>
+
+  <!-- Signup-code prompt (only shown if the link didn't carry one) -->
+  <div class="panel hidden" id="gate">
+    <h2>Signup code</h2>
+    <p class="sub" style="margin-bottom:12px">Paste the code from your invite link.</p>
+    <div class="row" style="grid-template-columns:1fr auto">
+      <input id="code" type="password" placeholder="signup code" autocomplete="off" />
+      <button id="useCode">Continue</button>
+    </div>
+    <p id="gateStatus" class="status err" style="margin-top:10px"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Your product</h2>
+    <label>Company / product name</label><input id="product_name" placeholder="Acme Analytics" />
+    <label>What it does <span class="hint">one or two sentences: what it is, for whom</span></label>
+    <textarea id="product_context" placeholder="Self-serve product analytics for small SaaS teams…"></textarea>
+    <label>What "activated" means <span class="hint">the moment a user has really adopted you</span></label>
+    <input id="activation_definition" placeholder="connected a data source and viewed a dashboard" />
+    <label>Pricing</label>
+    <textarea id="pricing_summary" placeholder="$49/mo Starter (1 source), $199/mo Growth (unlimited)…"></textarea>
+    <div class="row">
+      <div><label>Competitors <span class="hint">comma-separated, optional</span></label><input id="competitors" placeholder="Amplitude, Mixpanel" /></div>
+      <div><label>Allowed website origins <span class="hint">optional; where your cancel flow runs</span></label><input id="allowed_origins" placeholder="https://app.acme.com" /></div>
+    </div>
+    <label style="margin-top:8px">A short handle for your account <span class="hint">lowercase, no spaces — can't change later</span></label>
+    <input id="customer_id" placeholder="acme" />
+
+    <label style="margin-top:20px">Your save offers <span class="hint">the discounts/pauses/etc. you authorize — you decide these</span></label>
+    <div id="offers"></div>
+    <button class="ghost sm" id="addOffer" type="button">+ add offer</button>
+
+    <div class="actions">
+      <button id="submit">Create my keys</button>
+      <span id="formStatus" class="status"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const OFFER_TYPES = ["discount", "downgrade", "pause", "onboarding", "support", "roadmap", "gift", "extend_trial", "none"];
+  // The signup code comes from the invite link (?code=...). If absent, we show a field for it.
+  let code = new URLSearchParams(location.search).get("code") || "";
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, props = {}, kids = []) => {
+    const n = Object.assign(document.createElement(tag), props);
+    for (const k of kids) n.append(k);
+    return n;
+  };
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${code}` },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let data = null; try { data = text ? JSON.parse(text) : null; } catch {}
+    if (!res.ok) throw { status: res.status, detail: (data && data.detail) || text || res.statusText };
+    return data;
+  }
+
+  function addOfferRow(type = "discount", description = "") {
+    const sel = el("select");
+    for (const t of OFFER_TYPES) sel.append(el("option", { value: t, textContent: t, selected: t === type }));
+    const desc = el("input", { placeholder: "50% off for 3 months", value: description });
+    const del = el("button", { className: "ghost sm", type: "button", textContent: "×" });
+    const row = el("div", { className: "offer" }, [sel, desc, del]);
+    del.onclick = () => row.remove();
+    $("offers").append(row);
+  }
+  function readOffers() {
+    return [...$("offers").querySelectorAll(".offer")].map((r) => ({
+      type: r.querySelector("select").value,
+      description: r.querySelector("input").value.trim(),
+    })).filter((o) => o.description);
+  }
+  const csv = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean);
+
+  async function submit() {
+    const offers = readOffers();
+    const status = $("formStatus");
+    status.className = "status";
+    if (!code) { $("gate").classList.remove("hidden"); $("gateStatus").textContent = "a signup code is required"; return; }
+    if (!$("customer_id").value.trim()) { status.className = "status err"; status.textContent = "an account handle is required"; return; }
+    if (!$("product_name").value.trim()) { status.className = "status err"; status.textContent = "product name is required"; return; }
+    if (!offers.length) { status.className = "status err"; status.textContent = "add at least one save offer"; return; }
+    const spec = {
+      customer_id: $("customer_id").value.trim(),
+      // public_key omitted -> the server auto-generates one.
+      product: {
+        product_name: $("product_name").value.trim(),
+        product_context: $("product_context").value.trim(),
+        activation_definition: $("activation_definition").value.trim(),
+        pricing_summary: $("pricing_summary").value.trim(),
+      },
+      offers,
+      competitors: csv("competitors"),
+      allowed_origins: csv("allowed_origins"),
+    };
+    $("submit").disabled = true;
+    status.textContent = "creating…";
+    try {
+      const r = await api("/onboard", spec);
+      showSuccess(r);
+      status.textContent = "";
+    } catch (e) {
+      status.className = "status err";
+      status.textContent = e.status === 409 ? `that handle is taken: ${e.detail}`
+        : e.status === 422 ? `please fix: ${e.detail}`
+        : e.status === 401 ? "signup code rejected — check your invite link"
+        : e.status === 404 ? "signup is not enabled on this server"
+        : `error: ${e.detail || e}`;
+    } finally {
+      $("submit").disabled = false;
+    }
+  }
+
+  function showSuccess(r) {
+    const box = $("result");
+    box.className = "banner ok";
+    box.innerHTML = "";
+    box.append(el("div", { innerHTML: `You're set up as <code>${r.customer_id}</code> with ${r.offers} offer(s). Your cancel flow is live now.` }));
+    box.append(el("div", { style: "margin-top:12px;font-weight:700", textContent: "Save these now — the signing secret is shown once and can't be recovered." }));
+    const keyRow = el("div", { className: "secret" }, [
+      el("span", { textContent: "public_key (put in your SDK): " }),
+      el("code", { textContent: r.public_key }),
+      el("button", { className: "ghost sm", textContent: "copy", onclick: () => navigator.clipboard.writeText(r.public_key) }),
+    ]);
+    const secretRow = el("div", { className: "secret" }, [
+      el("span", { textContent: "signing_secret (keep on your backend): " }),
+      el("code", { textContent: r.signing_secret }),
+      el("button", { className: "ghost sm", textContent: "copy", onclick: () => navigator.clipboard.writeText(r.signing_secret) }),
+    ]);
+    box.append(keyRow); box.append(secretRow);
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  if (!code) $("gate").classList.remove("hidden");
+  $("useCode").onclick = () => { code = $("code").value.trim(); if (code) $("gate").classList.add("hidden"); };
+  $("addOffer").onclick = () => addOfferRow();
+  $("submit").onclick = submit;
+  addOfferRow();
+</script>
+</body>
+</html>
