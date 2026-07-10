@@ -1,6 +1,6 @@
 {
   "name": "offboard",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Drop-in web SDK for Offboard: an AI exit interview inside your cancel flow that diagnoses the real churn reason and returns a structured outcome.",
   "type": "module",
   "main": "./dist/index.js",

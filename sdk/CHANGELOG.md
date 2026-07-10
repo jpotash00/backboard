@@ -3,13 +3,9 @@
 All notable changes to the `offboard` package are documented here. This project
 follows [Semantic Versioning](https://semver.org).
 
-## [0.1.4] — 2026-07-10
+## [0.1.5] — 2026-07-10
 
 ### Fixed
-- Modal message log now scrolls reliably. The scroll container was missing
-  `min-height:0`, so on shorter viewports a tall in-chat offer card (headline +
-  the Accept/Decline buttons) could be clipped by the modal with no way to
-  scroll to the buttons. Purely a CSS fix; no API change.
 - The offer card no longer renders the raw decision `rationale` as its subtitle.
   That string is developer-facing audit data (`reason -> type … [EV=…, margin=…;
   mode]`) and was leaking into the customer-facing UI. The card now shows only
@@ -19,6 +15,14 @@ follows [Semantic Versioning](https://semver.org).
 ### Added
 - `offerSubtext` option: an optional customer-facing line under the offer
   headline, for hosts that want a reassuring sentence. Off by default.
+
+## [0.1.4] — 2026-07-10
+
+### Fixed
+- Modal message log now scrolls reliably. The scroll container was missing
+  `min-height:0`, so on shorter viewports a tall in-chat offer card (headline +
+  the Accept/Decline buttons) could be clipped by the modal with no way to
+  scroll to the buttons. Purely a CSS fix; no API change.
 
 ## [0.1.3] — 2026-07-10
 
