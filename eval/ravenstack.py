@@ -291,6 +291,43 @@ def build_ravenstack_personas(n: int = 30, seed: int = 0, path: str | None = Non
     return out
 
 
+def churner_population(path: str | None = None) -> list[dict]:
+    """Every paying churned account as a lightweight economic record -- the NATURAL (unbalanced)
+    distribution, for revenue simulation over the whole book rather than a balanced eval sample.
+    Each record: {account_id, reason, mrr, plan, tenure_days, expected_offer}."""
+    t = _load(path)
+    subs_by_acct = defaultdict(list)
+    for s in t["subscriptions"]:
+        subs_by_acct[s["account_id"]].append(s)
+    usage_by_sub = defaultdict(list)
+    for u in t["feature_usage"]:
+        usage_by_sub[u["subscription_id"]].append(u)
+    tickets_by_acct = defaultdict(list)
+    for tk in t["support_tickets"]:
+        tickets_by_acct[tk["account_id"]].append(tk)
+    accounts = {a["account_id"]: a for a in t["accounts"]}
+
+    out: list[dict] = []
+    for churn in t["churn_events"]:
+        acc = accounts.get(churn["account_id"])
+        if not acc:
+            continue
+        subs = subs_by_acct.get(churn["account_id"], [])
+        churned = [s for s in subs if _flag(s["churn_flag"])] or subs
+        if not churned:
+            continue
+        sub = max(churned, key=lambda s: _date(s["start_date"]) or datetime.min)
+        if _flag(sub["is_trial"]) or _num(sub["mrr_amount"]) <= 0:
+            continue
+        ctx, sig = _account_signals(acc, sub, usage_by_sub.get(sub["subscription_id"], []),
+                                    tickets_by_acct.get(acc["account_id"], []), churn)
+        reason = _derive_reason(ctx, sig, (churn["feedback_text"] or "").strip())
+        out.append({"account_id": acc["account_id"], "reason": reason, "mrr": ctx.mrr,
+                    "plan": ctx.plan, "tenure_days": ctx.tenure_days,
+                    "expected_offer": REASON_TO_EXPECTED[reason]})
+    return out
+
+
 if __name__ == "__main__":
     import collections
     ps = build_ravenstack_personas(n=int(os.getenv("N", "30")))
