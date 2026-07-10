@@ -13,6 +13,12 @@ primary_region = 'iad'
   OFFBOARD_CONFIG_DIR = '/data/configs'
   OFFBOARD_RUNS_DIR = '/data/runs'
   OFFBOARD_TRUSTED_PROXY_HOPS = '1'
+  # Seed the bundled secret-less demo tenants (acme/zen) onto the volume on boot, so GET /demo
+  # works. Idempotent + never overwrites an onboarded tenant. Remove to stop reseeding.
+  OFFBOARD_SEED_DEMO = '1'
+  # Where the image's top-level demo/ and configs/ dirs live (the WORKDIR). The `api` package is
+  # pip-installed to site-packages, so these siblings can't be found __file__-relative on prod.
+  OFFBOARD_APP_ROOT = '/app'
   PORT = '8000'
 
 [[mounts]]

@@ -19,11 +19,13 @@ dist
 runs
 scratch_runs
 
-# Node / SDK build artifacts and the demo -- shipped to npm separately, not in the API image.
+# Node / SDK build artifacts -- shipped to npm separately, not in the API image. The demo/ page
+# IS served by the engine (GET /demo), so it is deliberately NOT ignored; it's a tiny self-contained
+# HTML file that pulls the SDK from a CDN (no bundled JS), so shipping it keeps the image lean.
 sdk/node_modules
 sdk/dist
 node_modules
-demo
+demo/*.md
 
 # Tests and the brief aren't needed at runtime.
 tests

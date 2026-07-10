@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%236366f1'/%3E%3Cpath d='M6 15l4-5 3 3 5-6' stroke='white' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <title>Acme Analytics</title>
+  <style>
+    /* shadcn/ui tokens, but with an INDIGO brand primary — so when the Offboard widget
+       adopts the host tokens, its CTAs come out in Acme's brand, not neutral zinc.
+       This is the whole point: the widget looks native to the app it's dropped into. */
+    :root{
+      --bg:hsl(240 20% 99%); --panel:hsl(0 0% 100%); --panel-2:hsl(240 20% 96.5%);
+      --line:hsl(240 12% 90%); --ink:hsl(240 12% 12%); --dim:hsl(240 6% 46%);
+      --brand:hsl(243 75% 59%); --brand-ink:hsl(243 75% 59%); --brand-soft:hsl(243 75% 59% / .1);
+      --good:hsl(142 71% 38%); --good-soft:hsl(142 71% 38% / .12);
+      --warn:hsl(35 92% 40%); --warn-soft:hsl(35 92% 48% / .14);
+      --destructive:hsl(0 72% 48%); --destructive-soft:hsl(0 72% 50% / .09);
+      --shadow-sm:0 1px 2px rgba(15,15,40,.05);
+      --shadow:0 1px 2px rgba(15,15,40,.04), 0 10px 26px rgba(15,15,40,.06);
+      --ease:cubic-bezier(.32,.72,0,1);
+      /* Raw HSL triples the Offboard widget reads via theme.adoptHostTokens (light + dark). */
+      --background:240 20% 99%; --foreground:240 12% 12%;
+      --muted:240 20% 96.5%; --muted-foreground:240 6% 46%;
+      --border:240 12% 90%; --ring:243 75% 59%;
+      --primary:243 75% 59%; --primary-foreground:0 0% 100%; --radius:.65rem;
+    }
+    :root[data-theme="dark"], html.dark{
+      --bg:hsl(240 14% 6%); --panel:hsl(240 12% 9%); --panel-2:hsl(240 10% 14%);
+      --line:hsl(240 8% 18%); --ink:hsl(0 0% 97%); --dim:hsl(240 6% 60%);
+      --brand:hsl(243 90% 72%); --brand-ink:hsl(243 90% 76%); --brand-soft:hsl(243 90% 72% / .16);
+      --good:hsl(142 69% 58%); --good-soft:hsl(142 69% 58% / .14);
+      --warn:hsl(35 92% 62%); --warn-soft:hsl(35 92% 55% / .16);
+      --destructive:hsl(0 72% 62%); --destructive-soft:hsl(0 72% 60% / .12);
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 36px rgba(0,0,0,.5);
+      --background:240 12% 9%; --foreground:0 0% 97%;
+      --muted:240 10% 14%; --muted-foreground:240 6% 60%;
+      --border:240 8% 18%; --ring:243 90% 72%;
+      --primary:243 90% 72%; --primary-foreground:240 14% 8%;
+    }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{ margin:0; background:var(--bg); color:var(--ink);
+      font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; letter-spacing:-.011em; }
+    a{ color:inherit; text-decoration:none }
+
+    .app{ display:grid; grid-template-columns:248px 1fr; min-height:100vh }
+
+    /* Sidebar */
+    .side{ border-right:1px solid var(--line); background:var(--panel); padding:18px 14px;
+      display:flex; flex-direction:column; gap:4px; position:sticky; top:0; height:100vh }
+    .logo{ display:flex; align-items:center; gap:10px; padding:6px 8px 16px }
+    .logo-mark{ width:30px; height:30px; border-radius:8px; background:var(--brand);
+      display:grid; place-items:center; box-shadow:0 2px 8px hsl(243 75% 59% / .35) }
+    .logo-mark svg{ width:18px; height:18px }
+    .logo-name{ font-weight:700; font-size:15.5px; letter-spacing:-.02em }
+    .workspace{ margin-left:auto; font-size:11px; color:var(--dim); background:var(--panel-2);
+      padding:3px 8px; border-radius:6px; font-weight:600 }
+    .nav-label{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
+      color:var(--dim); padding:14px 8px 6px }
+    .nav-item{ display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:9px;
+      font-size:14px; font-weight:500; color:var(--dim); cursor:pointer; transition:all .14s ease }
+    .nav-item svg{ width:17px; height:17px; flex:0 0 auto }
+    .nav-item:hover{ background:var(--panel-2); color:var(--ink) }
+    .nav-item.on{ background:var(--brand-soft); color:var(--brand-ink); font-weight:600 }
+    .nav-badge{ margin-left:auto; font-size:10.5px; font-weight:700; color:var(--brand-ink);
+      background:var(--brand-soft); padding:1px 7px; border-radius:999px }
+    .side-foot{ margin-top:auto; padding-top:12px; border-top:1px solid var(--line);
+      display:flex; align-items:center; gap:10px }
+    .avatar{ width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#a855f7);
+      display:grid; place-items:center; color:#fff; font-weight:700; font-size:13px; flex:0 0 auto }
+    .who-name{ font-size:13px; font-weight:600; line-height:1.2 }
+    .who-mail{ font-size:11.5px; color:var(--dim) }
+
+    /* Main */
+    .main{ min-width:0; display:flex; flex-direction:column }
+    .topbar{ height:60px; border-bottom:1px solid var(--line); background:hsl(0 0% 100% / .7);
+      backdrop-filter:blur(10px); position:sticky; top:0; z-index:5;
+      display:flex; align-items:center; gap:14px; padding:0 26px }
+    :root[data-theme="dark"] .topbar, html.dark .topbar{ background:hsl(240 12% 9% / .7) }
+    .search{ display:flex; align-items:center; gap:9px; background:var(--panel-2);
+      border:1px solid transparent; border-radius:9px; padding:8px 12px; width:min(320px,42%);
+      color:var(--dim); font-size:13.5px }
+    .search svg{ width:15px; height:15px }
+    .top-spacer{ flex:1 }
+    .icon-btn{ width:34px; height:34px; border-radius:8px; border:1px solid var(--line);
+      background:var(--panel); display:grid; place-items:center; cursor:pointer; color:var(--dim) }
+    .icon-btn:hover{ color:var(--ink) }
+    .icon-btn svg{ width:16px; height:16px }
+    .btn{ appearance:none; font:inherit; font-weight:600; font-size:13.5px; border-radius:9px;
+      padding:8px 15px; cursor:pointer; border:1px solid transparent; transition:all .15s ease }
+    .btn.primary{ background:var(--brand); color:#fff; box-shadow:0 2px 8px hsl(243 75% 59% / .3) }
+    .btn.primary:hover{ filter:brightness(1.06) }
+    .btn.ghost{ background:var(--panel); border-color:var(--line); color:var(--ink) }
+    .btn.ghost:hover{ background:var(--panel-2) }
+    .btn.danger{ background:var(--panel); border-color:var(--destructive); color:var(--destructive) }
+    .btn.danger:hover{ background:var(--destructive-soft) }
+
+    .content{ padding:30px 34px 80px; max-width:1120px; width:100% }
+    .page-head{ margin-bottom:24px }
+    .page-title{ font-size:24px; font-weight:700; letter-spacing:-.03em; margin:0 }
+    .page-sub{ color:var(--dim); font-size:14px; margin:5px 0 0 }
+
+    /* KPI grid */
+    .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px }
+    .kpi{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 17px;
+      box-shadow:var(--shadow-sm) }
+    .kpi-label{ font-size:12.5px; color:var(--dim); display:flex; align-items:center; gap:6px }
+    .kpi-val{ font-size:26px; font-weight:700; letter-spacing:-.03em; margin:8px 0 4px }
+    .delta{ font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:3px }
+    .delta.up{ color:var(--good) } .delta.down{ color:var(--destructive) }
+
+    .grid-2{ display:grid; grid-template-columns:1.55fr 1fr; gap:16px }
+    .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px;
+      box-shadow:var(--shadow-sm); padding:18px 20px }
+    .panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px }
+    .panel-title{ font-size:14.5px; font-weight:650 }
+    .panel-title small{ display:block; font-size:12px; font-weight:400; color:var(--dim); margin-top:2px }
+    .seg{ display:inline-flex; background:var(--panel-2); border-radius:8px; padding:2px }
+    .seg button{ border:0; background:transparent; color:var(--dim); font:inherit; font-size:12px;
+      font-weight:600; padding:5px 11px; border-radius:6px; cursor:pointer }
+    .seg button.on{ background:var(--panel); color:var(--ink); box-shadow:var(--shadow-sm) }
+
+    .chart{ width:100%; height:200px; display:block }
+    .list-row{ display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line) }
+    .list-row:last-child{ border-bottom:0 }
+    .dot{ width:9px; height:9px; border-radius:3px; flex:0 0 auto }
+    .list-name{ font-size:13.5px; font-weight:550 }
+    .list-val{ margin-left:auto; font-size:13px; font-weight:600 }
+    .list-bar{ height:6px; border-radius:4px; background:var(--panel-2); overflow:hidden; margin-top:5px }
+    .list-bar > i{ display:block; height:100%; border-radius:4px; background:var(--brand) }
+
+    table{ width:100%; border-collapse:collapse; font-size:13px }
+    th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim);
+      font-weight:600; padding:0 0 10px }
+    td{ padding:11px 0; border-top:1px solid var(--line) }
+    .tag{ font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:999px }
+    .tag.ok{ background:var(--good-soft); color:var(--good) }
+    .tag.pending{ background:var(--warn-soft); color:var(--warn) }
+
+    /* Settings */
+    .subtabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:22px }
+    .subtab{ padding:10px 14px; font-size:13.5px; font-weight:600; color:var(--dim); cursor:pointer;
+      border-bottom:2px solid transparent; margin-bottom:-1px }
+    .subtab.on{ color:var(--ink); border-bottom-color:var(--brand) }
+    .field{ display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:16px 0; border-bottom:1px solid var(--line) }
+    .field:last-child{ border-bottom:0 }
+    .field-k{ font-size:13.5px; font-weight:600 }
+    .field-k small{ display:block; font-size:12.5px; color:var(--dim); font-weight:400; margin-top:2px }
+    .input{ background:var(--panel-2); border:1px solid var(--line); border-radius:9px;
+      padding:9px 12px; font:inherit; font-size:14px; color:var(--ink); min-width:240px }
+
+    .plan-card{ display:flex; align-items:center; gap:18px; padding:20px; border-radius:14px;
+      background:linear-gradient(120deg, var(--brand-soft), transparent 70%); border:1px solid var(--line) }
+    .plan-badge{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+      color:#fff; background:var(--brand); padding:4px 10px; border-radius:6px }
+    .plan-name{ font-size:19px; font-weight:700; letter-spacing:-.02em }
+    .plan-price{ color:var(--dim); font-size:13.5px; margin-top:2px }
+    .usage{ margin:18px 0 4px }
+    .usage-bar{ height:8px; border-radius:5px; background:var(--panel-2); overflow:hidden }
+    .usage-bar > i{ display:block; height:100%; background:linear-gradient(90deg,var(--brand),#a855f7) }
+
+    .danger-zone{ border:1px solid var(--destructive); border-radius:14px; padding:18px 20px;
+      background:var(--destructive-soft); margin-top:26px; display:flex; align-items:center;
+      justify-content:space-between; gap:16px }
+    .danger-zone .field-k small{ color:var(--dim) }
+
+    /* Result banner in billing */
+    .banner{ margin-top:20px; border:1px solid var(--line); border-radius:14px; padding:18px 20px;
+      display:none; box-shadow:var(--shadow); background:var(--panel) }
+    .banner.show{ display:block; animation:rise .5s var(--ease) }
+    @keyframes rise{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
+    .banner-head{ display:flex; align-items:center; gap:13px }
+    .b-icon{ width:42px; height:42px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto }
+    .b-icon svg{ width:22px; height:22px }
+    .b-icon.good{ background:var(--good-soft); color:var(--good) }
+    .b-icon.warn{ background:var(--warn-soft); color:var(--warn) }
+    .b-icon.neutral{ background:var(--panel-2); color:var(--dim) }
+    .b-title{ font-size:16px; font-weight:650 }
+    .b-title small{ display:block; font-size:13px; font-weight:400; color:var(--dim); margin-top:2px }
+    .diag{ margin-top:16px; padding-top:16px; border-top:1px solid var(--line) }
+    .diag-title{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+      color:var(--dim); margin-bottom:11px }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+    .chip{ font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:999px }
+    .chip.reason{ background:var(--brand); color:#fff }
+    .chip.cover{ background:var(--panel-2); color:var(--ink) }
+    .chip-arrow{ color:var(--dim); font-size:13px }
+    .meta{ margin-top:13px; font-size:13px; line-height:1.6; color:var(--dim) }
+    .meta b{ color:var(--ink); font-weight:600 }
+    .evidence{ margin-top:10px; padding:12px 14px; border-radius:11px; background:var(--panel-2);
+      font-size:13px; line-height:1.55; color:var(--ink) }
+    code{ background:var(--panel-2); padding:2px 6px; border-radius:5px; font-size:12px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
+
+    /* Demo dock — the only non-product chrome. Lets you drive different churners live. */
+    .dock{ position:fixed; right:20px; bottom:20px; z-index:40; width:320px;
+      background:var(--panel); border:1px solid var(--line); border-radius:16px;
+      box-shadow:var(--shadow); overflow:hidden; transform-origin:bottom right }
+    .dock-bar{ display:flex; align-items:center; gap:9px; padding:12px 14px; cursor:pointer;
+      background:var(--panel-2) }
+    .dock-bar .pulse{ width:8px; height:8px; border-radius:50%; background:var(--good);
+      box-shadow:0 0 0 0 var(--good-soft); animation:pulse 2s infinite }
+    @keyframes pulse{ 0%{ box-shadow:0 0 0 0 hsl(142 71% 45% / .5) } 70%{ box-shadow:0 0 0 8px transparent } 100%{ box-shadow:0 0 0 0 transparent } }
+    .dock-bar b{ font-size:12.5px; font-weight:650 }
+    .dock-bar span{ font-size:11.5px; color:var(--dim) }
+    .dock-bar .chev{ margin-left:auto; color:var(--dim); transition:transform .2s ease }
+    .dock.collapsed .dock-body{ display:none }
+    .dock.collapsed .chev{ transform:rotate(180deg) }
+    .dock-body{ padding:14px }
+    .dock-body label{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+      color:var(--dim); display:block; margin-bottom:7px }
+    .persona{ display:block; width:100%; text-align:left; border:1px solid var(--line);
+      background:var(--panel); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer;
+      transition:all .14s ease }
+    .persona:hover{ border-color:var(--brand) }
+    .persona.on{ border-color:var(--brand); background:var(--brand-soft) }
+    .persona b{ font-size:13px; font-weight:600 }
+    .persona small{ display:block; font-size:11.5px; color:var(--dim); margin-top:2px; line-height:1.4 }
+    .dock-tip{ font-size:11.5px; color:var(--dim); line-height:1.5; margin-top:4px }
+    .dock-tip code{ font-size:11px }
+
+    @media (max-width:880px){
+      .app{ grid-template-columns:1fr } .side{ display:none }
+      .kpis{ grid-template-columns:repeat(2,1fr) } .grid-2{ grid-template-columns:1fr }
+      .dock{ width:calc(100vw - 40px) }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="side">
+      <div class="logo">
+        <div class="logo-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M6 15l4-5 3 3 5-6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="logo-name">Acme</div>
+        <div class="workspace">Growth</div>
+      </div>
+      <div class="nav-label">Analytics</div>
+      <div class="nav-item on" data-route="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Overview</div>
+      <div class="nav-item" data-route="events">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7" stroke-linecap="round"/></svg>
+        Events <span class="nav-badge">1.2M</span></div>
+      <div class="nav-item" data-route="funnels">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" stroke-linejoin="round"/></svg>
+        Funnels</div>
+      <div class="nav-item" data-route="retention">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Retention</div>
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item" data-route="team">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M17 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6" stroke-linecap="round"/></svg>
+        Team</div>
+      <div class="nav-item" data-route="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 2.6h.1A1.6 1.6 0 0 0 12 1.1a2 2 0 1 1 4 0V2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 21.4 9v.1a1.6 1.6 0 0 0 0 3z" stroke-linejoin="round" transform="scale(.82) translate(2.6 2.6)"/></svg>
+        Settings</div>
+      <div class="side-foot">
+        <div class="avatar">JR</div>
+        <div>
+          <div class="who-name">Jordan Rivera</div>
+          <div class="who-mail">jordan@northstar.io</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+          Search events, funnels…
+        </div>
+        <div class="top-spacer"></div>
+        <button class="icon-btn" id="theme-toggle" title="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="btn primary">+ New report</button>
+      </div>
+
+      <div class="content" id="content"><!-- routed --></div>
+    </div>
+  </div>
+
+  <!-- Demo dock -->
+  <div class="dock collapsed" id="dock">
+    <div class="dock-bar" id="dock-bar">
+      <span class="pulse"></span>
+      <div><b>Offboard demo</b> <span id="dock-persona-name">· live engine</span></div>
+      <span class="chev">▾</span>
+    </div>
+    <div class="dock-body">
+      <label>Simulate the churning user</label>
+      <div id="persona-list"></div>
+      <div class="dock-tip">Go to <b>Settings → Billing</b> and hit <b>Cancel subscription</b>.
+        The engine sees this user's behavior via <code>context</code>.</div>
+    </div>
+  </div>
+
+  <script type="module">
+    // One file, two modes. Served from localhost/file:// → use the local SDK build + local engine.
+    // Served from anywhere else (a static host, or the engine itself) → pull the published SDK from
+    // a CDN and hit prod. So this same file is your local demo AND your hostable demo.
+    const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1"
+      || location.protocol === "file:";
+    const API_BASE  = LOCAL ? "http://localhost:8000" : "https://offboard.fly.dev";
+    const SDK_URL   = LOCAL ? "../sdk/dist/index.js"   : "https://esm.sh/offboard@0.1.3";
+    // pk_demo_acme is the local trust-body demo key. For a hosted demo, replace PROD_KEY with the
+    // publishable key of a secret-less demo tenant that exists on prod (see demo/HOSTING.md).
+    const PROD_KEY  = "pk_demo_acme";
+    const PUBLIC_KEY = LOCAL ? "pk_demo_acme" : PROD_KEY;
+
+    const { default: Offboard } = await import(SDK_URL);
+
+    const ICONS = {
+      good: '<svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      wave: '<svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 1 0-12 0v3a6 6 0 0 0 6 6M12 22a6 6 0 0 0 6-6M6 11l-2 2M18 11l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      exit: '<svg viewBox="0 0 24 24" fill="none"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    };
+
+    // The same three Acme churners as the mock demo — but now inside a real-looking product.
+    const PERSONAS = [
+      { id: "acme_never", label: "Signed up, never got going",
+        note: "Never connected a source · 2 logins in 60d. Open the interview with “too expensive.”",
+        context: { plan:"Starter", mrr:49, tenure_days:61, logins_last_30d:1, activated:false,
+          usage_summary:"Signed up 61 days ago. Never connected a data source. 2 logins total, none in 3 weeks." } },
+      { id: "acme_price", label: "Daily power user, watching cost",
+        note: "Daily active 7mo, always hitting the event cap. Try “too expensive.”",
+        context: { plan:"Starter", mrr:49, tenure_days:210, logins_last_30d:27, activated:true,
+          usage_summary:"Daily active for 7 months, 3 sources connected, constantly hitting the Starter 10k-event cap." } },
+      { id: "acme_ended", label: "Project wrapped up",
+        note: "Heavy use then a cliff to zero 3 weeks ago. Try “not using it anymore.”",
+        context: { plan:"Growth", mrr:199, tenure_days:320, logins_last_30d:1, activated:true,
+          usage_summary:"Heavy daily use for months, then a sharp cliff to near-zero 3 weeks ago." } },
+    ];
+    let persona = PERSONAS[0];
+
+    const $ = (s, r=document) => r.querySelector(s);
+
+    /* ---------- pages ---------- */
+    function sparkPath(vals, w, h, pad=6){
+      const max = Math.max(...vals), min = Math.min(...vals);
+      const nx = i => pad + (i/(vals.length-1)) * (w - pad*2);
+      const ny = v => h - pad - ((v-min)/((max-min)||1)) * (h - pad*2);
+      const line = vals.map((v,i)=>`${i?"L":"M"}${nx(i).toFixed(1)} ${ny(v).toFixed(1)}`).join(" ");
+      const area = `${line} L${nx(vals.length-1).toFixed(1)} ${h-pad} L${nx(0).toFixed(1)} ${h-pad} Z`;
+      return { line, area };
+    }
+    const SERIES = [42,48,45,53,61,58,67,72,69,78,85,82,91,97,94,103,112,108,120,131,127,138,146,152];
+
+    function pageOverview(){
+      const { line, area } = sparkPath(SERIES, 640, 200);
+      const events = [
+        ["Dashboard viewed", 412903, 100, "var(--brand)"],
+        ["Report exported", 188442, 46, "#a855f7"],
+        ["Source connected", 96110, 24, "#22c55e"],
+        ["Alert triggered", 51288, 13, "#f59e0b"],
+        ["Member invited", 22740, 6, "#64748b"],
+      ];
+      return `
+        <div class="page-head">
+          <h1 class="page-title">Overview</h1>
+          <p class="page-sub">Product analytics for <b>North Star</b> · last 30 days</p>
+        </div>
+        <div class="kpis">
+          ${kpi("Monthly active", "18,204", "up", "+12.4%")}
+          ${kpi("Events tracked", "1.24M", "up", "+8.1%")}
+          ${kpi("Week-4 retention", "41.8%", "down", "−1.2%")}
+          ${kpi("Tracked revenue", "$92,410", "up", "+5.6%")}
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Events over time<small>Daily, all sources</small></div>
+              <div class="seg"><button>7d</button><button class="on">30d</button><button>90d</button></div>
+            </div>
+            <svg class="chart" viewBox="0 0 640 200" preserveAspectRatio="none">
+              <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="var(--brand)" stop-opacity=".28"/>
+                <stop offset="1" stop-color="var(--brand)" stop-opacity="0"/></linearGradient></defs>
+              <path d="${area}" fill="url(#g)"/>
+              <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">Top events<small>By volume</small></div></div>
+            ${events.map(([n,v,pct,c])=>`
+              <div style="padding:9px 0">
+                <div class="list-row" style="border:0;padding:0">
+                  <span class="dot" style="background:${c}"></span>
+                  <span class="list-name">${n}</span>
+                  <span class="list-val">${v.toLocaleString()}</span>
+                </div>
+                <div class="list-bar"><i style="width:${pct}%;background:${c}"></i></div>
+              </div>`).join("")}
+          </div>
+        </div>`;
+    }
+    const kpi = (label,val,dir,delta)=>`
+      <div class="kpi"><div class="kpi-label">${label}</div>
+        <div class="kpi-val">${val}</div>
+        <span class="delta ${dir}">${dir==="up"?"▲":"▼"} ${delta}</span></div>`;
+
+    function pagePlaceholder(title, sub){
+      return `<div class="page-head"><h1 class="page-title">${title}</h1>
+        <p class="page-sub">${sub}</p></div>
+        <div class="panel" style="display:grid;place-items:center;min-height:280px;text-align:center;color:var(--dim)">
+          <div><div style="font-size:15px;font-weight:600;color:var(--ink)">Nothing to see in the demo</div>
+          <div style="font-size:13px;margin-top:6px;max-width:38ch">This section is scaffolding — the demo lives in
+          <b>Settings → Billing</b>, where the cancel flow runs.</div></div></div>`;
+    }
+
+    let subtab = "billing";
+    function pageSettings(){
+      const tabs = ["general","billing","team"].map(t=>
+        `<div class="subtab ${t===subtab?"on":""}" data-subtab="${t}">${t[0].toUpperCase()+t.slice(1)}</div>`).join("");
+      return `<div class="page-head"><h1 class="page-title">Settings</h1>
+        <p class="page-sub">Manage your workspace, plan, and team.</p></div>
+        <div class="subtabs">${tabs}</div>
+        <div id="subpanel">${subtab==="billing"?panelBilling():subtab==="general"?panelGeneral():panelTeam()}</div>`;
+    }
+    function panelGeneral(){
+      return `<div class="panel">
+        <div class="field"><div class="field-k">Workspace name<small>Shown across the app</small></div>
+          <input class="input" value="North Star"></div>
+        <div class="field"><div class="field-k">Primary email<small>For billing & alerts</small></div>
+          <input class="input" value="jordan@northstar.io"></div>
+        <div class="field"><div class="field-k">Data region<small>Where events are stored</small></div>
+          <input class="input" value="US · Virginia"></div></div>`;
+    }
+    function panelTeam(){
+      const rows = [["Jordan Rivera","Owner","ok"],["Sam Okafor","Admin","ok"],["Priya Nair","Member","ok"],["dev@northstar.io","Invited","pending"]];
+      return `<div class="panel"><table><thead><tr><th>Member</th><th>Role</th><th style="text-align:right">Status</th></tr></thead>
+        <tbody>${rows.map(([n,r,s])=>`<tr><td style="font-weight:600">${n}</td><td>${r}</td>
+          <td style="text-align:right"><span class="tag ${s}">${s==="ok"?"Active":"Pending"}</span></td></tr>`).join("")}</tbody></table></div>`;
+    }
+    function panelBilling(){
+      const invoices = [["Jun 1, 2026","$199.00","ok"],["May 1, 2026","$199.00","ok"],["Apr 1, 2026","$199.00","ok"]];
+      return `
+        <div class="plan-card">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+              <span class="plan-badge">Current plan</span></div>
+            <div class="plan-name">Growth</div>
+            <div class="plan-price">$199 / month · renews Jul 1, 2026</div>
+          </div>
+          <button class="btn ghost">Change plan</button>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head"><div class="panel-title">Usage this cycle<small>Events tracked</small></div>
+            <div style="font-size:13px;font-weight:600">742k <span style="color:var(--dim);font-weight:400">/ 1M</span></div></div>
+          <div class="usage"><div class="usage-bar"><i style="width:74%"></i></div></div>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head"><div class="panel-title">Invoices</div></div>
+          <table><thead><tr><th>Date</th><th>Amount</th><th style="text-align:right">Status</th></tr></thead>
+          <tbody>${invoices.map(([d,a,s])=>`<tr><td>${d}</td><td>${a}</td>
+            <td style="text-align:right"><span class="tag ${s}">Paid</span></td></tr>`).join("")}</tbody></table>
+        </div>
+        <div class="danger-zone">
+          <div class="field-k">Cancel subscription
+            <small>You'll be asked a couple of quick questions before we close your account.</small></div>
+          <button class="btn danger" id="cancel-btn">Cancel subscription</button>
+        </div>
+        <div class="banner" id="banner">
+          <div class="banner-head"><div class="b-icon" id="b-icon"></div>
+            <div class="b-title" id="b-title"></div></div>
+          <div id="b-body"></div>
+        </div>`;
+    }
+
+    /* ---------- router ---------- */
+    const ROUTES = {
+      overview: pageOverview,
+      events: () => pagePlaceholder("Events", "Explore and segment every tracked event."),
+      funnels: () => pagePlaceholder("Funnels", "Multi-step conversion analysis."),
+      retention: () => pagePlaceholder("Retention", "Cohort retention over time."),
+      team: () => pagePlaceholder("Team", "Invite and manage teammates."),
+      settings: pageSettings,
+    };
+    function go(route){
+      $("#content").innerHTML = ROUTES[route]();
+      document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("on", n.dataset.route===route));
+      if (route === "settings") wireSettings();
+    }
+    document.querySelectorAll(".nav-item").forEach(n=>n.addEventListener("click",()=>go(n.dataset.route)));
+
+    function wireSettings(){
+      document.querySelectorAll(".subtab").forEach(t=>t.addEventListener("click",()=>{
+        subtab = t.dataset.subtab; go("settings");
+      }));
+      const cancel = $("#cancel-btn");
+      if (cancel) cancel.addEventListener("click", startCancel);
+    }
+
+    /* ---------- the actual integration ---------- */
+    function startCancel(){
+      $("#banner")?.classList.remove("show");
+      Offboard.showCancelFlow({
+        userId: persona.id,
+        context: persona.context,
+        // Adopt Acme's host tokens (indigo primary, radius, dark mode) so the widget is native.
+        theme: { adoptHostTokens: true },
+        onAccept: (o) => renderStayed(o),   // user took the offer → you'd call Stripe here
+        onCancel: (o) => renderCancelled(o), // declined / escape hatch → you'd really cancel
+      });
+    }
+
+    function showBanner(icon, tone, title, sub, body){
+      const b = $("#banner"); if (!b) return;
+      $("#b-icon").className = `b-icon ${tone}`; $("#b-icon").innerHTML = ICONS[icon];
+      $("#b-title").innerHTML = `${title}<small>${sub}</small>`;
+      $("#b-body").innerHTML = body || "";
+      b.classList.add("show"); b.scrollIntoView({ behavior:"smooth", block:"nearest" });
+    }
+    function diagHtml(o){
+      const conf = Math.round((o.confidence ?? 0) * 100);
+      return `<div class="diag"><div class="diag-title">What Offboard learned</div>
+        <div class="chips"><span class="chip cover">“${esc(o.cover_story)}”</span>
+          <span class="chip-arrow">→ really</span><span class="chip reason">${esc(o.reason)}</span></div>
+        <div class="meta"><b>${conf}%</b> confidence · <b>${o.turns_used}</b> turns ·
+          ${o.savable ? "flagged <b>savable</b>" : "<b>not</b> savable"}</div>
+        <div class="evidence">${esc(o.evidence)}</div></div>`;
+    }
+    function renderStayed(o){
+      const desc = o.intervention ? esc(o.intervention.description) : "the offer";
+      showBanner("good","good","Subscription kept 🎉","The user accepted the in-chat offer.",
+        `<div class="meta" style="margin-top:14px">They accepted <b>${desc}</b>. Your app applies it in
+        <code>onAccept</code> — e.g. call Stripe with <code>intervention.id</code>. Offboard never touches billing.</div>`
+        + diagHtml(o));
+    }
+    function renderCancelled(o){
+      if (!o){ showBanner("exit","neutral","Cancelled cleanly","The user tapped the escape hatch.",
+        `<div class="meta" style="margin-top:14px">No diagnosis, no offer — <code>Just cancel</code> was honored immediately.</div>`);
+        return; }
+      showBanner("wave","warn","Subscription cancelled",
+        o.intervention ? "They declined the offer and left." : "No offer was authorized.", diagHtml(o));
+    }
+    const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+    /* ---------- demo dock + theme ---------- */
+    function renderPersonas(){
+      $("#persona-list").innerHTML = PERSONAS.map((p,i)=>
+        `<button class="persona ${p===persona?"on":""}" data-i="${i}"><b>${p.label}</b><small>${p.note}</small></button>`).join("");
+      $("#dock-persona-name").textContent = "· " + persona.label;
+      document.querySelectorAll(".persona").forEach(b=>b.addEventListener("click",()=>{
+        persona = PERSONAS[+b.dataset.i]; renderPersonas();
+      }));
+    }
+    $("#dock-bar").addEventListener("click", ()=> $("#dock").classList.toggle("collapsed"));
+    $("#theme-toggle").addEventListener("click", ()=>{
+      const dark = document.documentElement.getAttribute("data-theme") === "dark";
+      document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    });
+    if (matchMedia("(prefers-color-scheme: dark)").matches)
+      document.documentElement.setAttribute("data-theme","dark");
+
+    // boot
+    Offboard.init({ publicKey: PUBLIC_KEY, apiBaseUrl: API_BASE });
+    renderPersonas();
+    go("overview");
+  </script>
+</body>
+</html>

@@ -15,6 +15,13 @@ COPY learning ./learning
 COPY eval ./eval
 RUN pip install --no-cache-dir ".[api,redis]"
 
+# The live product demo (served at /demo). Self-contained HTML that loads the published SDK from a
+# CDN, so we ship only the page -- no sdk/dist. Placed after the install so demo edits don't bust
+# the dependency layer. `configs/` holds the two secret-less demo tenants (acme/zen); a startup
+# seeder (OFFBOARD_SEED_DEMO) copies them onto the volume so the demo works on a fresh mount.
+COPY demo ./demo
+COPY configs ./configs
+
 # The append-only data asset (transcripts / resolutions / outcomes) must survive redeploys.
 # Point it at a mounted volume; the default here assumes /data is mounted (see DEPLOY.md).
 ENV OFFBOARD_RUNS_DIR=/data/runs

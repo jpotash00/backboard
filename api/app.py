@@ -102,6 +102,50 @@ def _lazy_anthropic_factory() -> Callable[[], object]:
     return factory
 
 
+def _bundled_dir(name: str) -> Path:
+    """Locate a top-level project dir (demo/, configs/) that ships in the image but is NOT part of
+    the pip-installed `api` package. On prod `api` imports from site-packages, so a __file__-relative
+    path misses these siblings; they live at the container WORKDIR instead. Resolve against, in order:
+    OFFBOARD_APP_ROOT (set to /app on Fly), the current working dir, then the source-tree layout (for
+    local dev, where `api` is imported in place). Returns the first that exists."""
+    candidates = []
+    root = os.getenv("OFFBOARD_APP_ROOT")
+    if root:
+        candidates.append(Path(root) / name)
+    candidates.append(Path.cwd() / name)
+    candidates.append(Path(__file__).resolve().parent.parent / name)
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[-1]
+
+
+def _seed_demo_configs() -> None:
+    """Copy the bundled secret-less demo configs (image `configs/*.json`) into OFFBOARD_CONFIG_DIR
+    for any file not already present, so GET /demo works on a fresh volume with no manual shell
+    step. Gated by OFFBOARD_SEED_DEMO (off by default), idempotent (never overwrites an onboarded
+    tenant's file), and fully defensive -- any failure is swallowed so demo seeding can NEVER block
+    a real deploy's boot. The demo configs carry no signing_secret (trust-body), which is exactly
+    what lets the browser demo drive them without a signed identity token."""
+    try:
+        if os.getenv("OFFBOARD_SEED_DEMO", "").strip().lower() not in {"1", "true", "yes"}:
+            return
+        config_dir = os.getenv("OFFBOARD_CONFIG_DIR")
+        if not config_dir:
+            return
+        import shutil
+
+        src = _bundled_dir("configs")
+        dst = Path(config_dir)
+        dst.mkdir(parents=True, exist_ok=True)
+        for f in sorted(src.glob("*.json")):
+            target = dst / f.name
+            if not target.exists():
+                shutil.copyfile(f, target)
+    except Exception:  # pragma: no cover - seeding must never break boot
+        pass
+
+
 def create_app(
     registry: Optional[CustomerRegistry] = None,
     store: Optional[SessionStore] = None,
@@ -115,6 +159,7 @@ def create_app(
     trusted_proxy_hops: Optional[int] = None,
     signup_key: Optional[str] = None,
 ) -> FastAPI:
+    _seed_demo_configs()  # before default_registry() globs the dir; no-op unless OFFBOARD_SEED_DEMO
     registry = registry or default_registry()
     client_factory = client_factory or _lazy_anthropic_factory()
     # Admin surface (POST /configs). `admin_key` is a SECRET bearer token, distinct from any
@@ -346,6 +391,14 @@ def create_app(
         # Public install/integration guide. Static, non-secret, always available -- it only documents
         # the SDK and links to the gated surfaces, so serving it unconditionally advertises nothing.
         return FileResponse(Path(__file__).parent / "docs.html")
+
+    @app.get("/demo", include_in_schema=False)
+    @app.get("/demo/app.html", include_in_schema=False)
+    def demo_page() -> FileResponse:
+        # The live product demo: a mock "Acme Analytics" app running the real SDK against THIS engine.
+        # Self-contained HTML (SDK pulled from the CDN, no bundled assets); it drives the secret-less
+        # `pk_demo_acme` trust-body config, so it needs no signed identity token. Static, non-secret.
+        return FileResponse(_bundled_dir("demo") / "app.html")
 
     @app.get("/favicon.svg", include_in_schema=False)
     def favicon() -> FileResponse:
