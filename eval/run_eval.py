@@ -219,7 +219,17 @@ def main() -> int:
     print(f"Running Milestone 1 eval  |  interviewer={os.getenv('CHURN_MODEL', 'claude-sonnet-5')}"
           f"  personas={os.getenv('PERSONA_MODEL', 'claude-sonnet-5')}")
 
-    personas = build_personas()
+    # Persona source. `authored` (default) is the curated 10-persona baseline; `ravenstack` draws
+    # data-grounded personas from the RavenStack dataset (realistic context, reason derived from
+    # behavior). Toggle with EVAL_SOURCE=ravenstack [EVAL_N=30] [EVAL_SEED=0].
+    source = os.getenv("EVAL_SOURCE", "authored")
+    if source == "ravenstack":
+        from .ravenstack import build_ravenstack_personas
+        personas = build_ravenstack_personas(n=int(os.getenv("EVAL_N", "30")),
+                                             seed=int(os.getenv("EVAL_SEED", "0")))
+        print(f"  source=ravenstack  |  {len(personas)} data-grounded personas")
+    else:
+        personas = build_personas()
     results: list[Result] = []
     transcripts: list[Transcript] = []
     for persona in personas:
