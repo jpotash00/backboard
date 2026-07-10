@@ -47,8 +47,10 @@
     padding: 12px 22px; background: color-mix(in srgb, var(--bg) 82%, transparent);
     backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--border);
   }
-  .brand { display: flex; align-items: center; gap: 9px; font-weight: 640; letter-spacing: -.02em; }
+  .brand { display: flex; align-items: center; gap: 7px; font-weight: 640; letter-spacing: -.02em; color: inherit; text-decoration: none; }
   .brand .mark { width: 22px; height: 22px; flex: none; }
+  .brand .back-ic { width: 16px; height: 16px; flex: none; color: var(--muted); transition: color .12s; }
+  .brand:hover .back-ic { color: var(--fg); }
   .brand small { color: var(--muted); font-weight: 500; }
   .spacer { flex: 1; }
   .who { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg-2); }
@@ -192,9 +194,10 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand">
+  <a href="/" class="brand" title="Back to home" aria-label="Back to home">
+    <svg class="back-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
     <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
-  </div>
+  </a>
   <div class="spacer"></div>
   <div id="who" class="who hidden"></div>
   <button id="signout" class="iconbtn danger hidden" title="Disconnect">Disconnect</button>
