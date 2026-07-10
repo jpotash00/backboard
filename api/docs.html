@@ -143,6 +143,21 @@
     color: var(--fg-2); font: inherit; font-size: 13px; padding: 0 8px; cursor: pointer; }
   .ver:hover { color: var(--fg); }
 
+  /* Changelog */
+  .log { margin: 18px 0 0; }
+  .log .rel { padding: 16px 14px; margin: 0 -14px; border-top: 1px solid var(--border);
+    border-radius: 10px; scroll-margin-top: 92px; transition: background .3s ease; }
+  .log .rel:first-child { border-top: 0; }
+  .log .rel.flash { animation: relflash 1.6s ease; }
+  @keyframes relflash { 0%, 22% { background: var(--glow); } 100% { background: transparent; } }
+  .log .rel-h { display: flex; align-items: center; gap: 10px; }
+  .log .tag { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; font-weight: 640; color: var(--fg); }
+  .log .latest { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--brand); background: var(--code-inline-bg); padding: 2px 7px; border-radius: 999px; }
+  .log .date { margin-left: auto; color: var(--muted); font-size: 12.5px; }
+  .log ul { margin: 8px 0 0; }
+  .log li:only-child { margin-top: 0; }
+
   /* API method badges + endpoint rows */
   .m { display: inline-block; min-width: 46px; text-align: center; font-family: ui-monospace, Menlo, monospace;
     font-size: 10.5px; font-weight: 700; padding: 3px 6px; border-radius: 5px; margin-right: 9px; letter-spacing: .03em; }
@@ -182,8 +197,11 @@
     <a href="/docs" class="nav-link on">Docs</a>
     <a href="/onboard" class="nav-link">Set up</a>
   </nav>
-  <select class="ver" id="ver" aria-label="Documentation version" title="Documentation version">
-    <option value="0.1.2">v0.1.2 · latest</option>
+  <select class="ver" id="ver" aria-label="SDK version — jump to its changelog" title="SDK version — jump to its changelog">
+    <option value="0-1-3">v0.1.3 · latest</option>
+    <option value="0-1-2">v0.1.2</option>
+    <option value="0-1-1">v0.1.1</option>
+    <option value="0-1-0">v0.1.0</option>
   </select>
   <a href="/dashboard" class="btn btn-solid">Dashboard</a>
 </div>
@@ -204,6 +222,8 @@
     <a href="#guarantees">Guarantees</a>
     <div class="side-h">Troubleshooting</div>
     <a href="#errors">Common errors</a>
+    <div class="side-h">Reference</div>
+    <a href="#changelog">Changelog</a>
   </aside>
 
   <main class="content">
@@ -393,21 +413,51 @@ Content-Type: application/json
       not just offers accepted. Fire it on a schedule for every customer you saved.</p>
 
     <h2 id="context">Sending context</h2>
-    <p>The interview sharpens with what it knows about the customer. Pass whatever you have in the
-      <code>context</code> object; every field is optional.</p>
+    <p>The interview is only as sharp as what it knows about the customer. Feed it <strong>real behavioral
+      data</strong> pulled from your product analytics (PostHog, Amplitude, …) or your own database when the
+      cancel modal opens, not a hand-written blurb. This is what separates a real diagnosis from a guess:
+      someone who says "too expensive" but never activated doesn't have a price problem, and only your usage
+      data can tell those two apart.</p>
+    <p>The field that carries it is <code>signals</code>, an open key/value map. Drop in whatever you have,
+      named however you like, when the flow opens:</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">cancel-button.js</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='// Pull live signals from your analytics or DB the moment the user hits cancel.
+const signals = await getUsageSignals(user.id);
+// e.g. { activated: true, core_feature_uses_30d: 2, seat_limit_hits: 4, onboarding: "stalled_step_2" }
+
+Offboard.showCancelFlow({
+  userId: user.id,
+  identityToken: user.offboardToken,   // sign anything that gates an offer (see below)
+  context: { plan: "Growth", mrr: 199, tenure_days: 210, signals },
+  onAccept, onCancel,
+});'><span class="tok-c">// Pull live signals from your analytics or DB the moment the user hits cancel.</span>
+<span class="tok-k">const</span> signals <span class="tok-p">=</span> <span class="tok-k">await</span> <span class="tok-f">getUsageSignals</span><span class="tok-p">(</span>user<span class="tok-p">.</span>id<span class="tok-p">);</span>
+<span class="tok-c">// e.g. { activated: true, core_feature_uses_30d: 2, seat_limit_hits: 4, onboarding: "stalled_step_2" }</span>
+
+Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><span class="tok-p">({</span>
+  <span class="tok-f">userId</span><span class="tok-p">:</span> user<span class="tok-p">.</span>id<span class="tok-p">,</span>
+  <span class="tok-f">identityToken</span><span class="tok-p">:</span> user<span class="tok-p">.</span>offboardToken<span class="tok-p">,</span>   <span class="tok-c">// sign anything that gates an offer (see below)</span>
+  <span class="tok-f">context</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-f">plan</span><span class="tok-p">:</span> <span class="tok-s">"Growth"</span><span class="tok-p">,</span> <span class="tok-f">mrr</span><span class="tok-p">:</span> <span class="tok-n">199</span><span class="tok-p">,</span> <span class="tok-f">tenure_days</span><span class="tok-p">:</span> <span class="tok-n">210</span><span class="tok-p">,</span> signals <span class="tok-p">},</span>
+  onAccept<span class="tok-p">,</span> onCancel<span class="tok-p">,</span>
+<span class="tok-p">});</span></pre>
+    </div>
+    <p>Every field is optional. The typed ones are shortcuts for the signals that matter most:</p>
     <table class="fields">
       <tbody>
-        <tr><td><code>plan</code> · <code>mrr</code></td><td>Current plan name and monthly revenue.</td></tr>
-        <tr><td><code>tenure_days</code></td><td>How long they've been a customer.</td></tr>
-        <tr><td><code>logins_last_30d</code></td><td>Recent activity, a strong engagement signal.</td></tr>
-        <tr><td><code>activated</code></td><td>Whether they ever reached real adoption.</td></tr>
-        <tr><td><code>usage_summary</code></td><td>A short free-text note on how they use the product.</td></tr>
+        <tr><td><code>signals</code></td><td><strong>The primary field.</strong> An open key/value map of live behavioral data, feature usage, limits hit, onboarding progress. The richer this is, the sharper the diagnosis.</td></tr>
+        <tr><td><code>activated</code></td><td>Whether they ever reached real adoption, the single most useful flag.</td></tr>
+        <tr><td><code>logins_last_30d</code></td><td>Recent activity, a fast engagement read.</td></tr>
+        <tr><td><code>plan</code> · <code>mrr</code> · <code>tenure_days</code></td><td>Who they are commercially.</td></tr>
+        <tr><td><code>usage_summary</code></td><td>Optional free-text digest, only if you'd rather write a sentence than pass structured <code>signals</code>.</td></tr>
       </tbody>
     </table>
-    <div class="note warn">Browser <code>context</code> is a convenience and is treated as <strong>untrusted</strong>.
-      When your key has a signing secret, the economics that gate a paid offer come from the signed
-      <a class="link" href="#identity">identity token</a>, not from here, so a user can't inflate their own MRR
-      to unlock a bigger save.</div>
+    <div class="note warn"><strong>Trust boundary.</strong> Browser <code>context</code> is a convenience and is
+      treated as <strong>untrusted</strong>; with a signing secret it's ignored in favor of the signed
+      <a class="link" href="#identity">identity token</a>. So signals that only color the conversation can ride
+      in the browser context, but anything that should gate a paid offer, or that a user must not be able to
+      forge, your backend pulls and signs into the token.</div>
 
     <h2 id="identity">Verify identity <span class="step" style="margin-left:8px">required for paid offers</span></h2>
     <p>The cancel flow runs in the browser, so <strong>anything the browser sends can be forged</strong>.
@@ -512,6 +562,36 @@ export function signIdentity(secret, claims) {
       </tbody>
     </table>
 
+    <h2 id="changelog">Changelog</h2>
+    <p>Every published version of the <code>offboard</code> npm package, newest first. The version
+      selector in the header jumps to any release here. Upgrade with <code>npm i offboard@latest</code>.</p>
+    <div class="log">
+      <div class="rel" id="v0-1-3">
+        <div class="rel-h"><span class="tag">v0.1.3</span><span class="latest">Latest</span><span class="date">Jul 10, 2026</span></div>
+        <ul>
+          <li><strong>Typed <code>intervention.params</code>.</strong> An accepted offer now carries a structured
+            <code>params</code> handle — e.g. <code>{ stripe_coupon: "off50_3mo" }</code> — echoed back to
+            <code>onAccept</code>, so you apply the save with a lookup into your billing system instead of parsing
+            <code>description</code>. Optional and backward-compatible; existing integrations keep working unchanged.
+            See <a class="link" href="#apply">Apply the save</a>.</li>
+        </ul>
+      </div>
+      <div class="rel" id="v0-1-2">
+        <div class="rel-h"><span class="tag">v0.1.2</span><span class="date">Jul 9, 2026</span></div>
+        <ul><li>Packaging and publish-metadata maintenance release. No API changes.</li></ul>
+      </div>
+      <div class="rel" id="v0-1-1">
+        <div class="rel-h"><span class="tag">v0.1.1</span><span class="date">Jul 9, 2026</span></div>
+        <ul><li>Point the SDK's default API base URL at the production host, so <code>Offboard.init()</code> connects
+          out of the box with no <code>apiBaseUrl</code> override. Refreshed package keywords and published files.</li></ul>
+      </div>
+      <div class="rel" id="v0-1-0">
+        <div class="rel-h"><span class="tag">v0.1.0</span><span class="date">Jul 8, 2026</span></div>
+        <ul><li>Initial release: the typed Offboard contract, a drop-in cancel-flow modal, and a session client
+          for vanilla JS and React.</li></ul>
+      </div>
+    </div>
+
     <hr class="hr" />
     <p style="margin-top:24px">Ready? <a class="link" href="/onboard">Set up your tenant</a> to get keys, then
       drop the SDK behind your cancel button. Sessions and retained MRR show up in your
@@ -570,6 +650,18 @@ export function signIdentity(secret, claims) {
     }
   }, { rootMargin: "-70px 0px -70% 0px" });
   document.querySelectorAll(".content h2[id]").forEach((h) => spy.observe(h));
+
+  // Version selector: jump to the chosen release in the changelog and flash it.
+  const ver = document.getElementById("ver");
+  const flashRelease = (id) => {
+    const rel = document.getElementById("v" + id);
+    if (!rel) return;
+    rel.scrollIntoView({ behavior: "smooth", block: "center" });
+    rel.classList.remove("flash");
+    void rel.offsetWidth; // restart the animation
+    rel.classList.add("flash");
+  };
+  ver?.addEventListener("change", () => flashRelease(ver.value));
 </script>
 
 <!-- Prerender same-origin links on hover/pointerdown so navigation feels instant. -->
