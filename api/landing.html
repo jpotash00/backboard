@@ -174,25 +174,35 @@
     pointer-events: none; transition: opacity .16s, transform .16s; z-index: 60; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  /* ---- Reassurance + integrations strip + numbered steps (cal.com-style) ---- */
-  .reassure { margin-top: 16px; font-size: 13px; color: var(--muted); }
-  .reassure b { color: var(--fg-2); font-weight: 600; }
+  /* ---- Integrations strip ---- */
   .trusted { padding: 8px 24px 10px; text-align: center; }
   .trusted-h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
   .logos { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px 34px; }
   .logos span { font-size: 15.5px; font-weight: 600; color: var(--fg-2); letter-spacing: -.01em; opacity: .82; }
   @media (max-width: 640px) { .logos span { font-size: 13.5px; } }
 
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
-  .step { padding: 26px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-  .step .n {
-    display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px;
-    border-radius: 11px; background: var(--bg-2); border: 1px solid var(--border-2);
-    color: var(--brand); font-weight: 680; font-size: 14px; margin-bottom: 16px; font-variant-numeric: tabular-nums;
-  }
-  .step h3 { font-size: 16px; margin: 0 0 7px; letter-spacing: -.015em; font-weight: 600; }
-  .step p { margin: 0; color: var(--fg-2); font-size: 14px; }
+  /* ---- Feature cards ---- */
+  .fcards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .fcards { grid-template-columns: 1fr; } }
+  .fcard { padding: 26px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    transition: border-color .15s, transform .15s, box-shadow .15s; }
+  .fcard:hover { border-color: var(--border-2); transform: translateY(-3px); box-shadow: 0 16px 36px -22px rgba(0,0,0,.3); }
+  .fcard .tile { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px;
+    border-radius: 12px; background: var(--glow); color: var(--brand); margin-bottom: 16px; }
+  .fcard .tile svg { width: 20px; height: 20px; }
+  .fcard h3 { font-size: 16.5px; margin: 0 0 8px; letter-spacing: -.015em; font-weight: 620; }
+  .fcard p { margin: 0; color: var(--fg-2); font-size: 14px; }
+
+  /* ---- Impact cards ---- */
+  .impact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 680px) { .impact { grid-template-columns: 1fr; } }
+  .icard { position: relative; padding: 28px 24px 26px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; }
+  .icard::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--brand), transparent); }
+  .icard .lbl { font-size: 11.5px; font-weight: 660; letter-spacing: .05em; text-transform: uppercase; color: var(--brand); }
+  .icard h4 { font-size: 20px; letter-spacing: -.02em; margin: 12px 0 8px; font-weight: 640; }
+  .icard p { margin: 0; color: var(--fg-2); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -203,26 +213,24 @@
   </a>
   <div class="spacer"></div>
   <nav class="nav-links">
-    <a href="#how" class="nav-link">How it works</a>
-    <a href="#why" class="nav-link">Why it wins</a>
+    <a href="#features" class="nav-link">Features</a>
     <a href="/docs" class="nav-link">Docs</a>
-    <a href="/onboard" class="nav-link">Set up</a>
   </nav>
-  <a href="/dashboard" class="btn btn-solid">Dashboard</a>
+  <a href="/dashboard" class="btn btn-ghost">Log in</a>
+  <a href="/onboard" class="btn btn-solid">Get started</a>
 </div>
 
 <header class="hero">
-  <div class="badge"><span class="tag">SDK</span><span class="sep"></span> One import behind your cancel button</div>
   <h1>Cancel flows that save customers.</h1>
   <p class="lede">
-    A drop-in AI exit interview. Offboard finds the <em>real</em> reason a customer is leaving,
-    makes the right save in the moment, and reports the MRR it kept — you never touch a prompt.
+    Drop one SDK into your cancel flow and Offboard runs an AI exit interview — uncovering why each
+    customer is <em>really</em> leaving, making the right save offer in the moment, and reporting the
+    revenue it kept.
   </p>
   <div class="cta-row">
     <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
-    <a href="/dashboard" class="btn btn-ghost btn-lg">Open the dashboard</a>
+    <a href="/dashboard" class="btn btn-ghost btn-lg">Log in</a>
   </div>
-  <p class="reassure">No account needed · <b>keys in seconds</b> · free to start</p>
   <div class="install">
     <span class="cmd mono"><span class="sig">$</span> npm install <span class="pkg">offboard</span></span>
     <button class="copy" id="copyInstall" title="Copy" aria-label="Copy install command">
@@ -257,49 +265,50 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
 </div>
 
 <main class="wrap">
-  <section id="how">
+  <section id="features">
     <div class="sec-head">
-      <div class="kicker">How it works</div>
+      <div class="kicker">Features</div>
       <h2>From cancel click to kept revenue.</h2>
-      <p>Drop the SDK in, let the engine run the save, and read exactly what it learned — no prompts, no pipeline to babysit.</p>
+      <p>Drop the SDK in, let Offboard run the save, and read exactly what it learned — no prompts, no pipeline to babysit.</p>
     </div>
-    <div class="steps">
-      <div class="step">
-        <span class="n">01</span>
-        <h3>Install &amp; init</h3>
-        <p>One import behind your cancel button renders a short, theme-matched conversation — not a dead-end form.</p>
+    <div class="fcards">
+      <div class="fcard">
+        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></span>
+        <h3>One import</h3>
+        <p>A single call behind your cancel button renders a short, theme-matched conversation — not a dead-end form.</p>
       </div>
-      <div class="step">
-        <span class="n">02</span>
+      <div class="fcard">
+        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
         <h3>Diagnose &amp; save</h3>
-        <p>The engine finds the true reason and authorizes the right offer — a pause, a discount, a plan change — only when it's worth it.</p>
+        <p>Offboard finds the true reason and makes the right offer — a pause, a discount, a plan change — only when it's worth it.</p>
       </div>
-      <div class="step">
-        <span class="n">03</span>
+      <div class="fcard">
+        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
         <h3>Measure it</h3>
-        <p>Every session flows to your dashboard: why users churn, which offers land, and the MRR you retained — read-only, per tenant.</p>
+        <p>Every session flows to your dashboard: why users churn, which offers land, and the MRR you kept — read-only, per tenant.</p>
       </div>
     </div>
   </section>
 
-  <section id="why">
+  <section id="impact">
     <div class="sec-head">
-      <div class="kicker">Why it wins</div>
+      <div class="kicker">Impact</div>
       <h2>The reason on the form is never the real one.</h2>
+      <p>Self-reported cancel reasons are noise. Offboard turns the last screen before churn into diagnosis, a save, and a number you can take to the board.</p>
     </div>
-    <div class="value">
-      <div>
-        <div class="v-k">Diagnosed</div>
+    <div class="impact">
+      <div class="icard">
+        <div class="lbl">Diagnosed</div>
         <h4>The real reason</h4>
-        <p>Not a self-reported checkbox — the engine reads the conversation and the account context to name the true cause.</p>
+        <p>Not a self-reported checkbox — Offboard reads the conversation and the account context to name the true cause.</p>
       </div>
-      <div>
-        <div class="v-k">In the moment</div>
+      <div class="icard">
+        <div class="lbl">In the moment</div>
         <h4>The right save</h4>
-        <p>The offer is chosen and authorized live, while the customer is still deciding — the only moment it changes minds.</p>
+        <p>The offer is chosen and made while the customer is still deciding — the only moment it changes minds.</p>
       </div>
-      <div>
-        <div class="v-k">Measured</div>
+      <div class="icard">
+        <div class="lbl">Measured</div>
         <h4>Retained MRR</h4>
         <p>Saves and kept revenue are attributed per tenant, so retention stops being a guess you argue about in a meeting.</p>
       </div>
@@ -312,7 +321,7 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
   <p>Set up a tenant in minutes, then watch the saves — and the reasons — roll into your dashboard.</p>
   <div class="cta-row">
     <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
-    <a href="/dashboard" class="btn btn-ghost btn-lg">I have an account</a>
+    <a href="/dashboard" class="btn btn-ghost btn-lg">Log in</a>
   </div>
 </section>
 
@@ -324,9 +333,9 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
     </span>
     <div class="spacer"></div>
     <nav class="links">
-      <a href="/dashboard">Dashboard</a>
+      <a href="/dashboard">Log in</a>
       <a href="/docs">Docs</a>
-      <a href="/onboard">Set up</a>
+      <a href="/onboard">Get started</a>
       <a href="/health">Status</a>
     </nav>
     <span class="copy">© Offboard</span>
