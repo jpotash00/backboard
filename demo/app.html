@@ -309,13 +309,22 @@
     const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1"
       || location.protocol === "file:";
     const API_BASE  = LOCAL ? "http://localhost:8000" : "https://offboard.fly.dev";
-    const SDK_URL   = LOCAL ? "../sdk/dist/index.js"   : "https://esm.sh/offboard@0.1.3";
     // pk_demo_acme is the local trust-body demo key. For a hosted demo, replace PROD_KEY with the
     // publishable key of a secret-less demo tenant that exists on prod (see demo/HOSTING.md).
     const PROD_KEY  = "pk_demo_acme";
     const PUBLIC_KEY = LOCAL ? "pk_demo_acme" : PROD_KEY;
 
-    const { default: Offboard } = await import(SDK_URL);
+    // Load the SDK, tolerating every serving context: the engine serves it same-origin at /demo/sdk
+    // (so demo fixes ship with a redeploy, no npm publish); a static-file dev server has ../sdk/dist;
+    // a bare static host with neither falls back to the CDN. First that imports wins.
+    async function loadOffboard(){
+      const urls = LOCAL
+        ? ["../sdk/dist/index.js", "/demo/sdk/index.js"]
+        : ["/demo/sdk/index.js", "https://esm.sh/offboard"];
+      for (const u of urls){ try { return (await import(u)).default; } catch (_) { /* try next */ } }
+      throw new Error("Offboard SDK failed to load");
+    }
+    const Offboard = await loadOffboard();
 
     const ICONS = {
       good: '<svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -440,21 +449,31 @@
           <td style="text-align:right"><span class="tag ${s}">${s==="ok"?"Active":"Pending"}</span></td></tr>`).join("")}</tbody></table></div>`;
     }
     function panelBilling(){
-      const invoices = [["Jun 1, 2026","$199.00","ok"],["May 1, 2026","$199.00","ok"],["Apr 1, 2026","$199.00","ok"]];
+      // Reflect the SELECTED persona's real plan + price, so the billing page matches exactly what
+      // the interview reasons about (no "$199 Growth on screen but $49 Starter in the interview").
+      const plan = persona.context.plan, price = persona.context.mrr;
+      const isGrowth = plan === "Growth";
+      const capShort = isGrowth ? "1M" : "10k";
+      const cap = isGrowth ? 1_000_000 : 10_000;
+      const usePct = { acme_never: 1, acme_price: 96, acme_ended: 6 }[persona.id] ?? 42;
+      const used = Math.round((usePct / 100) * cap);
+      const usedLabel = used >= 1000 ? `${(used / 1000).toFixed(used >= 100000 ? 0 : 0)}k` : String(used);
+      const amt = `$${price.toFixed(2)}`;
+      const invoices = [["Jun 1, 2026",amt,"ok"],["May 1, 2026",amt,"ok"],["Apr 1, 2026",amt,"ok"]];
       return `
         <div class="plan-card">
           <div style="flex:1">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
               <span class="plan-badge">Current plan</span></div>
-            <div class="plan-name">Growth</div>
-            <div class="plan-price">$199 / month · renews Jul 1, 2026</div>
+            <div class="plan-name">${plan}</div>
+            <div class="plan-price">$${price} / month · renews Aug 1, 2026</div>
           </div>
           <button class="btn ghost">Change plan</button>
         </div>
         <div class="panel" style="margin-top:16px">
           <div class="panel-head"><div class="panel-title">Usage this cycle<small>Events tracked</small></div>
-            <div style="font-size:13px;font-weight:600">742k <span style="color:var(--dim);font-weight:400">/ 1M</span></div></div>
-          <div class="usage"><div class="usage-bar"><i style="width:74%"></i></div></div>
+            <div style="font-size:13px;font-weight:600">${usedLabel} <span style="color:var(--dim);font-weight:400">/ ${capShort}</span></div></div>
+          <div class="usage"><div class="usage-bar"><i style="width:${usePct}%"></i></div></div>
         </div>
         <div class="panel" style="margin-top:16px">
           <div class="panel-head"><div class="panel-title">Invoices</div></div>
@@ -483,7 +502,9 @@
       team: () => pagePlaceholder("Team", "Invite and manage teammates."),
       settings: pageSettings,
     };
+    let currentRoute = "overview";
     function go(route){
+      currentRoute = route;
       $("#content").innerHTML = ROUTES[route]();
       document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("on", n.dataset.route===route));
       if (route === "settings") wireSettings();
@@ -550,6 +571,8 @@
       $("#dock-persona-name").textContent = "· " + persona.label;
       document.querySelectorAll(".persona").forEach(b=>b.addEventListener("click",()=>{
         persona = PERSONAS[+b.dataset.i]; renderPersonas();
+        // Keep the billing page's plan/price in sync with the chosen churner.
+        if (currentRoute === "settings") go("settings");
       }));
     }
     $("#dock-bar").addEventListener("click", ()=> $("#dock").classList.toggle("collapsed"));

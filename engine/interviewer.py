@@ -70,7 +70,10 @@ be leaving?" or "if it did Y tomorrow, does that change anything?". This is a tr
 not a save attempt: a real price-leaver hesitates, while someone using price as cover
 waves it away and the true reason surfaces. Make the offer specific and plausible (anchor
 it to {pricing_summary} and their plan), and only float what the product could actually
-do. People can and do lie here -- treat a "yes I'd stay" as a signal to probe, not proof.
+do. State ACTUAL DOLLAR FIGURES from {pricing_summary}, never plan names alone -- say
+"if Growth dropped from $199 to $99/mo" not "closer to Starter", so they react to a real
+number and the hesitation test is honest. People can and do lie here -- treat a "yes I'd
+stay" as a signal to probe, not proof.
 Whatever they say, feed it into the `savable` judgment; never haggle or keep pitching.
 
 NEVER run a PRICE counterfactual while "too expensive" is still their stated cover and you

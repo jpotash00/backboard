@@ -480,10 +480,23 @@ export class CancelFlowModal {
     const headline = el("div", "offboard-offer-headline");
     headline.textContent = intervention.description;
     top.append(eyebrow, headline);
-    if (outcome.rationale) {
+    // The offer card shows ONLY the offer. The decision analytics (reason, rationale, the
+    // EV/margin economics, the full decision trace) are developer-facing audit data, not customer
+    // copy — surface them in the console, never in the UI. A host that wants a human line under the
+    // headline can pass `offerSubtext`.
+    if (this.opts.offerSubtext) {
       const sub = el("div", "offboard-offer-sub");
-      sub.textContent = outcome.rationale;
+      sub.textContent = this.opts.offerSubtext;
       top.append(sub);
+    }
+    if (typeof console !== "undefined") {
+      console.debug("[offboard] offer authorized", {
+        reason: outcome.reason,
+        intervention,
+        rationale: outcome.rationale,
+        economics: outcome.economics,
+        decision_trace: outcome.decision_trace,
+      });
     }
 
     const actions = el("div", "offboard-offer-actions");

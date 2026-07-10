@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir ".[api,redis]"
 # seeder (OFFBOARD_SEED_DEMO) copies them onto the volume so the demo works on a fresh mount.
 COPY demo ./demo
 COPY configs ./configs
+# The built SDK, served at /demo/sdk so the demo imports it same-origin (no CDN / version pin).
+COPY sdk/dist ./sdk/dist
 
 # The append-only data asset (transcripts / resolutions / outcomes) must survive redeploys.
 # Point it at a mounted volume; the default here assumes /data is mounted (see DEPLOY.md).

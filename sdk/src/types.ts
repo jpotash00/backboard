@@ -187,6 +187,12 @@ export interface ShowCancelFlowOptions {
    * from manufactured exclusivity. */
   offerEyebrow?: string;
 
+  /** Optional customer-facing line under the offer headline. The offer card otherwise shows only
+   * the offer itself — the decision analytics (reason, rationale, EV/margin, decision trace) are
+   * audit data logged to the console, never rendered as copy. Set this if you want a reassuring
+   * sentence (e.g. "Because the value hasn't matched the price for you."). */
+  offerSubtext?: string;
+
   /** Make the widget match your product's look. See {@link OffboardTheme}. */
   theme?: OffboardTheme;
 }

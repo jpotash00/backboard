@@ -396,9 +396,19 @@ def create_app(
     @app.get("/demo/app.html", include_in_schema=False)
     def demo_page() -> FileResponse:
         # The live product demo: a mock "Acme Analytics" app running the real SDK against THIS engine.
-        # Self-contained HTML (SDK pulled from the CDN, no bundled assets); it drives the secret-less
-        # `pk_demo_acme` trust-body config, so it needs no signed identity token. Static, non-secret.
+        # It imports the SDK same-origin from /demo/sdk (mounted below) so a demo/SDK fix ships with a
+        # plain redeploy -- no npm publish in the loop. Drives the secret-less `pk_demo_acme` trust-body
+        # config, so it needs no signed identity token. Static, non-secret.
         return FileResponse(_bundled_dir("demo") / "app.html")
+
+    # Serve the built SDK (sdk/dist) same-origin at /demo/sdk so the demo page can import it without a
+    # CDN round-trip or a version pin. Guarded: if the dist isn't in the image the mount is skipped and
+    # the page falls back to the CDN, so a missing build can't break app boot.
+    _sdk_dist = _bundled_dir("sdk/dist")
+    if _sdk_dist.exists():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/demo/sdk", StaticFiles(directory=str(_sdk_dist)), name="demo-sdk")
 
     @app.get("/favicon.svg", include_in_schema=False)
     def favicon() -> FileResponse:

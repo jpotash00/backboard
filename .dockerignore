@@ -23,9 +23,10 @@ scratch_runs
 # IS served by the engine (GET /demo), so it is deliberately NOT ignored; it's a tiny self-contained
 # HTML file that pulls the SDK from a CDN (no bundled JS), so shipping it keeps the image lean.
 sdk/node_modules
-sdk/dist
 node_modules
 demo/*.md
+# NOTE: sdk/dist is intentionally NOT ignored -- the engine serves it at /demo/sdk so the demo page
+# imports the SDK same-origin (no CDN, no version pin). It's the built ESM only, kept small.
 
 # Tests and the brief aren't needed at runtime.
 tests
