@@ -3,6 +3,14 @@
 All notable changes to the `offboard` package are documented here. This project
 follows [Semantic Versioning](https://semver.org).
 
+## [0.1.4] — 2026-07-10
+
+### Fixed
+- Modal message log now scrolls reliably. The scroll container was missing
+  `min-height:0`, so on shorter viewports a tall in-chat offer card (headline +
+  rationale + the Accept/Decline buttons) could be clipped by the modal with no
+  way to scroll to the buttons. Purely a CSS fix; no API change.
+
 ## [0.1.3] — 2026-07-10
 
 ### Added

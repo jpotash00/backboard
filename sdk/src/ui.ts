@@ -134,7 +134,9 @@ const CSS = `
   box-shadow:0 0 0 0 hsl(var(--ob-good) / .35); animation:ob-pulse 2.4s ease-in-out infinite }
 
 /* Message log */
-.offboard-log{ flex:1 1 auto; min-width:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+/* min-height:0 is load-bearing: without it a flex child won't shrink below its content height,
+   so the log stops scrolling and a tall offer card gets clipped by the modal's overflow:hidden. */
+.offboard-log{ flex:1 1 auto; min-width:0; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
   display:flex; flex-direction:column; gap:18px; padding:22px 18px 8px;
   scrollbar-width:thin; scrollbar-color:hsl(var(--ob-border)) transparent }
 .offboard-log::-webkit-scrollbar{ width:8px }
