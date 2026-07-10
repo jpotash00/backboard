@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(fly deploy:*)"
+      "Bash(fly deploy:*)",
+      "Bash(fly status:*)",
+      "Bash(fly logs:*)"
     ]
   }
 }
