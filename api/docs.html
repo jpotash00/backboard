@@ -210,8 +210,8 @@
       <h1>Install &amp; integrate Offboard</h1>
     </div>
     <p class="intro">Offboard is a drop-in web SDK that renders an AI exit-interview modal inside your
-      cancel flow, runs a brief (≤5-question) interview, and hands your app a structured outcome — the
-      real churn reason plus any save offer the engine authorized. Wiring it up is one import and one call.</p>
+      cancel flow, runs a short interview, and hands your app a structured outcome — the real churn
+      reason plus any save offer it authorized. Wiring it up is one import and one call.</p>
 
     <div class="note"><strong>Compatibility.</strong> The widget is a <strong>web SDK</strong> — JavaScript/TypeScript,
       running in the browser. The framework-free core works with vanilla JS, React (dedicated hook), Next.js,
@@ -232,11 +232,11 @@
     <h2 id="keys"><span class="step">2</span>Get your keys</h2>
     <p><a class="link" href="/onboard">Set up a tenant</a> to generate two keys instantly — no account, no waiting:</p>
     <ul>
-      <li><strong><code>public_key</code></strong> (<code>pk_…</code>) — safe to ship in your frontend. It identifies your tenant to the engine.</li>
+      <li><strong><code>public_key</code></strong> (<code>pk_…</code>) — safe to ship in your frontend. It identifies your tenant to Offboard.</li>
       <li><strong><code>signing_secret</code></strong> (<code>ss_…</code>) — <strong>backend only</strong>. It signs the identity tokens that authorize paid save offers. Shown once at setup — store it now.</li>
     </ul>
     <div class="note">Onboarding also captures your product context, pricing, and the save offers you're
-      willing to make. The engine only ever offers what <em>you</em> authorized — it never invents a discount.</div>
+      willing to make. Offboard only ever proposes offers <em>you</em> configured — it never invents a discount on its own.</div>
 
     <h2 id="quickstart"><span class="step">3</span>Quick start</h2>
     <p>Initialize once at startup, then open the flow behind your “Cancel subscription” button. The SDK
@@ -282,8 +282,8 @@ cancelButton<span class="tok-p">.</span><span class="tok-f">addEventListener</sp
   <span class="tok-p">});</span>
 <span class="tok-p">});</span></pre>
     </div>
-    <div class="note warn"><strong>Offboard never touches Stripe.</strong> On <code>onAccept</code> you apply
-      the offer yourself using <code>outcome.intervention.id</code>. The SDK only relays the decision.</div>
+    <div class="note warn"><strong>Offboard never charges or credits anyone.</strong> On <code>onAccept</code> you
+      apply the offer yourself (e.g. in Stripe) using <code>outcome.intervention.id</code> — the SDK only relays the decision.</div>
 
     <h2 id="react"><span class="step">4</span>React</h2>
     <p><code>offboard/react</code> exposes a hook. <code>react</code> is an optional peer dependency —
@@ -318,27 +318,27 @@ function CancelButton({ user }) {
 
     <h2 id="outcomes">Handle the outcome</h2>
     <p>Both <code>onAccept</code> and <code>onCancel</code> receive the same <code>Outcome</code> object.
-      It's the contract between the SDK and the engine — read from it, don't re-derive the decision.</p>
+      Read the decision from it rather than re-deriving it yourself.</p>
     <table class="fields">
       <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>reason</code></td><td>The <strong>real</strong> diagnosed churn reason (e.g. <code>price_value_mismatch</code>, <code>never_activated</code>) — not a self-reported checkbox.</td></tr>
         <tr><td><code>intervention.id</code></td><td>The authorized save action to apply on accept (or <code>null</code> if none was offered).</td></tr>
         <tr><td><code>mode</code></td><td><code>"act"</code> (auto-apply) or <code>"suggest"</code> (route to a human for approval).</td></tr>
-        <tr><td><code>confidence</code></td><td>How sure the engine is of the diagnosis.</td></tr>
+        <tr><td><code>confidence</code></td><td>How confident the diagnosis is.</td></tr>
       </tbody>
     </table>
     <p>There's also an optional <code>onResolved(outcome)</code> callback that fires when the interview
-      concludes (before the offer step) — handy for analytics.</p>
+      concludes — handy for analytics.</p>
 
     <h2 id="identity">Verify identity <span class="step" style="margin-left:8px">required for paid offers</span></h2>
     <p>The cancel flow runs in the browser, so <strong>anything the browser sends can be forged</strong>.
       If a user opens devtools and posts <code>mrr: 99999</code>, they must not unlock your richest offer.
-      So when your key has a signing secret, the engine <strong>ignores the raw <code>context</code>
-      economics</strong> and prices the save only off a token your backend signs.</p>
+      So when your key has a signing secret, <strong>paid offers are authorized only from a token your
+      backend signs</strong> — the <code>context</code> you pass from the browser is treated as untrusted.</p>
     <ol style="color:var(--fg-2);padding-left:20px;">
       <li style="margin:7px 0">Your server signs the user's real economics with your <code>signing_secret</code> (never expose it to the browser).</li>
-      <li style="margin:7px 0">Hand the token to your frontend and pass it as <code>identityToken</code>. The engine verifies the HMAC and authorizes off the signed claims.</li>
+      <li style="margin:7px 0">Hand the token to your frontend and pass it as <code>identityToken</code>. Offboard verifies the signature and authorizes the offer from the signed values.</li>
     </ol>
     <p>The token is <code>base64url(payload) + "." + base64url(HMAC_SHA256(secret, payload))</code>, where
       <code>payload</code> is JSON of the user fields plus <code>iat</code> (issued-at, unix seconds).
@@ -374,8 +374,8 @@ export function signIdentity(secret, claims) {
   <span class="tok-k">return</span> <span class="tok-s">`${</span>b64url<span class="tok-p">(</span>payload<span class="tok-p">)</span><span class="tok-s">}.${</span>b64url<span class="tok-p">(</span>sig<span class="tok-p">)</span><span class="tok-s">}`</span><span class="tok-p">;</span>
 <span class="tok-p">}</span></pre>
     </div>
-    <div class="note warn">Keys <strong>without</strong> a signing secret (local dev / the demo) trust the
-      request body as-is. Never ship a production cancel flow on an unsecured key.</div>
+    <div class="note warn">Keys <strong>without</strong> a signing secret trust the request body as-is — fine
+      for local development, but never ship a production cancel flow on an unsecured key.</div>
 
     <h2 id="theme">Match your look</h2>
     <p>The widget renders a neutral, theme-aware (light/dark) surface by default. Pass a <code>theme</code>
