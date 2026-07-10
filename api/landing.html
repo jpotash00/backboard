@@ -48,8 +48,9 @@
   .spacer { flex: 1; }
   .nav-link { color: var(--fg-2); font-size: 13.5px; font-weight: 500; }
   .nav-link:hover { color: var(--fg); }
-  .nav-links { display: none; gap: 22px; }
-  @media (min-width: 680px) { .nav-links { display: flex; } }
+  .nav-links { display: none; gap: 26px; }
+  /* Center the nav in the bar: absolutely positioned midpoint, logo left, CTAs right. */
+  @media (min-width: 680px) { .nav-links { display: flex; position: absolute; left: 50%; transform: translateX(-50%); } }
 
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -244,9 +245,9 @@
 <header class="hero">
   <h1>Save the customers you're about to lose.</h1>
   <p class="lede">
-    When someone hits cancel, Offboard runs an AI exit interview — it reads their account, learns why
-    they're <em>really</em> leaving, and makes the right save offer on the spot. You keep customers, and
-    the revenue, a checkbox form would have let walk.
+    The reason a customer picks on your cancel form is almost never the <em>real</em> one — so you lose
+    people you could have kept. Offboard's AI exit interviewer draws out why they're truly leaving,
+    weighs it against their account, and makes the offer most likely to win them back.
   </p>
   <div class="cta-row">
     <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
