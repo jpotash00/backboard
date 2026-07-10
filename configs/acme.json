@@ -56,7 +56,8 @@
         "id": "discount_50_3mo",
         "type": "discount",
         "description": "50% off for 3 months",
-        "eligible_when": "reason == price_value_mismatch AND tenure > 90"
+        "eligible_when": "reason == price_value_mismatch AND tenure > 90",
+        "params": { "stripe_coupon": "off50_3mo" }
       },
       {
         "id": "downgrade_starter",

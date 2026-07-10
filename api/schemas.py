@@ -13,6 +13,11 @@ class OfferSpec(BaseModel):
     description: str = Field(min_length=1, max_length=400)
     id: Optional[str] = Field(default=None, max_length=80)
     eligible_when: Optional[str] = Field(default=None, max_length=400)
+    # Optional structured handle applied verbatim on accept -- usually a reference to the offer's
+    # already-created object in your billing system (Offboard only picks offers you authorized, so
+    # it typically exists), e.g. {"stripe_coupon": "off50_3mo"}. Offboard never executes it; it's
+    # echoed back to your onAccept handler so your billing code doesn't parse `description`.
+    params: dict = Field(default_factory=dict)
 
 
 class ProductFacts(BaseModel):
@@ -134,6 +139,8 @@ class InterventionModel(BaseModel):
     id: str
     type: str
     description: str
+    # Structured params to apply in your billing system (empty when the offer defines none).
+    params: dict = Field(default_factory=dict)
 
 
 class TurnResponse(BaseModel):

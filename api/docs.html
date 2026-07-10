@@ -197,6 +197,8 @@
     <a href="#react">React</a>
     <div class="side-h">Going live</div>
     <a href="#outcomes">Handle the outcome</a>
+    <a href="#apply">Apply the save</a>
+    <a href="#context">Sending context</a>
     <a href="#identity">Verify identity</a>
     <a href="#theme">Match your look</a>
     <a href="#guarantees">Guarantees</a>
@@ -322,14 +324,90 @@ function CancelButton({ user }) {
     <table class="fields">
       <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
       <tbody>
-        <tr><td><code>reason</code></td><td>The <strong>real</strong> diagnosed churn reason (e.g. <code>price_value_mismatch</code>, <code>never_activated</code>) — not a self-reported checkbox.</td></tr>
-        <tr><td><code>intervention.id</code></td><td>The authorized save action to apply on accept (or <code>null</code> if none was offered).</td></tr>
-        <tr><td><code>mode</code></td><td><code>"act"</code> (auto-apply) or <code>"suggest"</code> (route to a human for approval).</td></tr>
+        <tr><td><code>reason</code></td><td>The <strong>real</strong> diagnosed churn reason (e.g. <code>price_value_mismatch</code>, <code>never_activated</code>), not a self-reported checkbox.</td></tr>
+        <tr><td><code>intervention.id</code></td><td>The authorized offer accepted (or <code>null</code> if none was offered).</td></tr>
+        <tr><td><code>intervention.params</code></td><td>A handle to the offer's object in your billing system, e.g. <code>{ stripe_coupon: "off50_3mo" }</code>, so you apply it without parsing text. Empty when the offer defines none.</td></tr>
+        <tr><td><code>intervention.type</code> · <code>.description</code></td><td>The kind of offer (<code>discount</code>, <code>pause</code>, <code>downgrade</code>, …) and its human label.</td></tr>
+        <tr><td><code>mode</code></td><td><code>"act"</code> (safe to auto-apply) or <code>"suggest"</code> (route to a human first).</td></tr>
         <tr><td><code>confidence</code></td><td>How confident the diagnosis is.</td></tr>
       </tbody>
     </table>
     <p>There's also an optional <code>onResolved(outcome)</code> callback that fires when the interview
-      concludes — handy for analytics.</p>
+      concludes, handy for analytics.</p>
+
+    <h2 id="apply">Apply the save, then close the loop</h2>
+    <p><code>onAccept</code> fires when the customer takes the offer. Because Offboard only ever picks an
+      offer <em>you</em> authorized, the matching object already lives in your billing system.
+      <code>intervention.params</code> is your handle to it, so applying the save is a lookup, not a rebuild.</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">on-accept.js</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='onAccept: (outcome) => {
+  const { intervention } = outcome;   // { id, type, params, ... }
+  // The offer already exists in your billing system; params points at it,
+  // e.g. { stripe_coupon: "off50_3mo" }. Apply it from YOUR backend
+  // (never call Stripe with a secret key from the browser):
+  fetch("/api/apply-save", {
+    method: "POST",
+    body: JSON.stringify({ userId, intervention }),
+  });
+}'>onAccept<span class="tok-p">:</span> <span class="tok-p">(</span>outcome<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-p">{</span>
+  <span class="tok-k">const</span> <span class="tok-p">{</span> intervention <span class="tok-p">}</span> <span class="tok-p">=</span> outcome<span class="tok-p">;</span>   <span class="tok-c">// { id, type, params, ... }</span>
+  <span class="tok-c">// The offer already exists in your billing system; params points at it,</span>
+  <span class="tok-c">// e.g. { stripe_coupon: "off50_3mo" }. Apply it from YOUR backend</span>
+  <span class="tok-c">// (never call Stripe with a secret key from the browser):</span>
+  <span class="tok-f">fetch</span><span class="tok-p">(</span><span class="tok-s">"/api/apply-save"</span><span class="tok-p">,</span> <span class="tok-p">{</span>
+    <span class="tok-f">method</span><span class="tok-p">:</span> <span class="tok-s">"POST"</span><span class="tok-p">,</span>
+    <span class="tok-f">body</span><span class="tok-p">:</span> JSON<span class="tok-p">.</span><span class="tok-f">stringify</span><span class="tok-p">({</span> userId<span class="tok-p">,</span> intervention <span class="tok-p">}),</span>
+  <span class="tok-p">});</span>
+<span class="tok-p">}</span></pre>
+    </div>
+    <div class="note">Offboard already recorded the acceptance for you. That <code>accepted</code> signal is the
+      label your retention data is built on, so there's nothing extra to log here.</div>
+
+    <h3>Close the loop with retention</h3>
+    <p>Acceptance is not retention. Someone can take 50% off and still churn in month four. To learn whether a
+      save actually held, report the outcome later from your backend (say, 90 days after the save):</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">report-retention · YOUR backend</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='POST https://offboard.fly.dev/outcomes
+Authorization: Bearer pk_live_…
+Content-Type: application/json
+
+{
+  "user_id": "user_123",
+  "active": true,
+  "observed_at": "2026-10-08T00:00:00Z"
+}'>POST https://offboard.fly.dev/outcomes
+<span class="tok-f">Authorization</span><span class="tok-p">:</span> Bearer pk_live_…
+<span class="tok-f">Content-Type</span><span class="tok-p">:</span> application/json
+
+<span class="tok-p">{</span>
+  <span class="tok-f">"user_id"</span><span class="tok-p">:</span> <span class="tok-s">"user_123"</span><span class="tok-p">,</span>
+  <span class="tok-f">"active"</span><span class="tok-p">:</span> <span class="tok-k">true</span><span class="tok-p">,</span>
+  <span class="tok-f">"observed_at"</span><span class="tok-p">:</span> <span class="tok-s">"2026-10-08T00:00:00Z"</span>
+<span class="tok-p">}</span></pre>
+    </div>
+    <p>Offboard joins it back to the session and reason, so your dashboard reflects saves that <em>held</em>,
+      not just offers accepted. Fire it on a schedule for every customer you saved.</p>
+
+    <h2 id="context">Sending context</h2>
+    <p>The interview sharpens with what it knows about the customer. Pass whatever you have in the
+      <code>context</code> object; every field is optional.</p>
+    <table class="fields">
+      <tbody>
+        <tr><td><code>plan</code> · <code>mrr</code></td><td>Current plan name and monthly revenue.</td></tr>
+        <tr><td><code>tenure_days</code></td><td>How long they've been a customer.</td></tr>
+        <tr><td><code>logins_last_30d</code></td><td>Recent activity, a strong engagement signal.</td></tr>
+        <tr><td><code>activated</code></td><td>Whether they ever reached real adoption.</td></tr>
+        <tr><td><code>usage_summary</code></td><td>A short free-text note on how they use the product.</td></tr>
+      </tbody>
+    </table>
+    <div class="note warn">Browser <code>context</code> is a convenience and is treated as <strong>untrusted</strong>.
+      When your key has a signing secret, the economics that gate a paid offer come from the signed
+      <a class="link" href="#identity">identity token</a>, not from here, so a user can't inflate their own MRR
+      to unlock a bigger save.</div>
 
     <h2 id="identity">Verify identity <span class="step" style="margin-left:8px">required for paid offers</span></h2>
     <p>The cancel flow runs in the browser, so <strong>anything the browser sends can be forged</strong>.

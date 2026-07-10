@@ -250,7 +250,7 @@ def _resolve_intervention(state: SessionState, intervention_id):
     iv = next((i for i in state.config.interventions if i.id == intervention_id), None)
     if iv is None:
         return None
-    return InterventionModel(id=iv.id, type=iv.type, description=iv.description)
+    return InterventionModel(id=iv.id, type=iv.type, description=iv.description, params=iv.params)
 
 
 def record_resolution(

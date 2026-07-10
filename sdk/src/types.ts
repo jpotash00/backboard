@@ -55,6 +55,11 @@ export interface Intervention {
   id: string;
   type: string;
   description: string;
+  /** Structured handle to apply in your billing system. Since Offboard only picks offers you
+   *  already authorized, the matching object usually already exists, so this is typically a
+   *  reference to it, e.g. `{ stripe_coupon: "off50_3mo" }`. Empty object when the offer defines
+   *  none; Offboard never executes it, it only hands it back so you don't parse `description`. */
+  params: Record<string, unknown>;
 }
 
 /** The outcome plus the resolved intervention, as handed to `onResolved`. */

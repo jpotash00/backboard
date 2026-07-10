@@ -59,6 +59,13 @@ class Intervention:
     type: str
     description: str
     eligible_when: Optional[str] = None
+    # Optional structured handle the host applies verbatim in its own billing system. Because
+    # Offboard only ever picks from offers the customer already authorized, the matching object
+    # usually already EXISTS in their billing system, so this is typically a reference to it --
+    # e.g. {"stripe_coupon": "off50_3mo"} -- not the discount reconstructed. Free-form by design:
+    # Offboard never executes it, it just hands it back on accept so the host doesn't parse
+    # `description` to act. Empty when the offer declares none.
+    params: dict = field(default_factory=dict)
 
 
 def _default_preferred() -> dict[str, list[str]]:

@@ -36,7 +36,7 @@ def config_to_dict(c: ProductConfig) -> dict[str, Any]:
         "reasons": [{"id": r.id, "description": r.description} for r in c.reasons],
         "interventions": [
             {"id": i.id, "type": i.type, "description": i.description,
-             "eligible_when": i.eligible_when}
+             "eligible_when": i.eligible_when, "params": i.params}
             for i in c.interventions
         ],
         "policy": {
@@ -78,6 +78,7 @@ def config_from_dict(data: dict[str, Any]) -> ProductConfig:
         Intervention(
             id=i["id"], type=i["type"], description=i["description"],
             eligible_when=i.get("eligible_when"),
+            params=(i["params"] if isinstance(i.get("params"), dict) else {}),
         )
         for i in data.get("interventions", [])
     ]

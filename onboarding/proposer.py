@@ -162,5 +162,6 @@ def _interventions(raw_list) -> list[Intervention]:
         out.append(Intervention(
             id=iid, type=str(item["type"]), description=str(item["description"]),
             eligible_when=(item.get("eligible_when") or None),
+            params=(item["params"] if isinstance(item.get("params"), dict) else {}),
         ))
     return out
