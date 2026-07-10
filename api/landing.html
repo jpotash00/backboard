@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <title>Offboard — cancel flows that save customers</title>
-<meta name="description" content="A drop-in AI cancel flow. It runs the exit interview, finds the real reason customers leave, makes the right save in the moment, and reports the MRR it kept." />
+<meta name="description" content="Offboard runs an AI exit interview the moment a customer tries to cancel — it reads their account, finds the real reason they're leaving, and makes the right save offer on the spot. Keep more customers, and the revenue." />
 <style>
   :root {
     --bg: #ffffff; --bg-2: #fafafa; --surface: #ffffff;
@@ -203,6 +203,27 @@
   .icard .lbl { font-size: 11.5px; font-weight: 660; letter-spacing: .05em; text-transform: uppercase; color: var(--brand); }
   .icard h4 { font-size: 20px; letter-spacing: -.02em; margin: 12px 0 8px; font-weight: 640; }
   .icard p { margin: 0; color: var(--fg-2); font-size: 14px; }
+
+  /* ---- Hero product visual: the exit interview in action ---- */
+  .hero-visual { margin: 50px auto 0; max-width: 430px; }
+  .chat { text-align: left; background: var(--surface); border: 1px solid var(--border-2); border-radius: 18px;
+    box-shadow: 0 44px 90px -46px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.02) inset; overflow: hidden; }
+  .chat-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .chat-top .t { display: flex; align-items: center; gap: 8px; font-weight: 620; font-size: 13.5px; letter-spacing: -.01em; }
+  .chat-top .t .mk { width: 15px; height: 15px; }
+  .chat-top .x { color: var(--muted); font-size: 15px; line-height: 1; }
+  .chat-body { padding: 18px 18px 6px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble { max-width: 86%; padding: 10px 13px; font-size: 13.3px; line-height: 1.5; border-radius: 15px; }
+  .bubble.bot { align-self: flex-start; background: var(--bg-2); color: var(--fg); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
+  .bubble.me { align-self: flex-end; background: var(--btn); color: var(--btn-fg); border-bottom-right-radius: 5px; }
+  .bubble b { font-weight: 660; }
+  .chat-actions { padding: 12px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .chat-cta { width: 100%; height: 42px; border: 0; border-radius: 11px; background: var(--brand); color: var(--brand-fg); font: inherit; font-weight: 620; font-size: 13.5px; }
+  .chat-ghost { width: 100%; height: 36px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; }
+
+  /* ---- For-developers section ---- */
+  .devsec .install { margin: 4px 0 0; }
+  .devsec .code-wrap { margin: 22px 0 0; }
 </style>
 </head>
 <body>
@@ -221,38 +242,31 @@
 </div>
 
 <header class="hero">
-  <h1>Cancel flows that save customers.</h1>
+  <h1>Save the customers you're about to lose.</h1>
   <p class="lede">
-    Drop one SDK into your cancel flow and Offboard runs an AI exit interview — uncovering why each
-    customer is <em>really</em> leaving, making the right save offer in the moment, and reporting the
-    revenue it kept.
+    When someone hits cancel, Offboard runs an AI exit interview — it reads their account, learns why
+    they're <em>really</em> leaving, and makes the right save offer on the spot. You keep customers, and
+    the revenue, a checkbox form would have let walk.
   </p>
   <div class="cta-row">
     <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
     <a href="/dashboard" class="btn btn-ghost btn-lg">Log in</a>
   </div>
-  <div class="install">
-    <span class="cmd mono"><span class="sig">$</span> npm install <span class="pkg">offboard</span></span>
-    <button class="copy" id="copyInstall" title="Copy" aria-label="Copy install command">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-    </button>
-  </div>
-
-  <div class="code-wrap">
-    <div class="window">
-      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">cancel-button.js</span></div>
-<pre><span class="tok-k">import</span> Offboard <span class="tok-k">from</span> <span class="tok-s">"offboard"</span><span class="tok-p">;</span>
-
-Offboard<span class="tok-p">.</span><span class="tok-f">init</span><span class="tok-p">({</span> <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span> <span class="tok-p">});</span>
-
-<span class="tok-c">// Behind your “Cancel subscription” button:</span>
-Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><span class="tok-p">({</span>
-  <span class="tok-f">userId</span><span class="tok-p">:</span> <span class="tok-s">"user_123"</span><span class="tok-p">,</span>
-  <span class="tok-f">context</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-f">plan</span><span class="tok-p">:</span> <span class="tok-s">"Starter"</span><span class="tok-p">,</span> <span class="tok-f">mrr</span><span class="tok-p">:</span> <span class="tok-n">49</span><span class="tok-p">,</span> <span class="tok-f">tenure_days</span><span class="tok-p">:</span> <span class="tok-n">210</span> <span class="tok-p">},</span>
-
-  <span class="tok-f">onAccept</span><span class="tok-p">:</span> <span class="tok-p">(</span>outcome<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-f">applyOffer</span><span class="tok-p">(</span>outcome<span class="tok-p">),</span>   <span class="tok-c">// they took the save</span>
-  <span class="tok-f">onCancel</span><span class="tok-p">:</span> <span class="tok-p">()</span>        <span class="tok-k">=&gt;</span> <span class="tok-f">completeCancellation</span><span class="tok-p">()</span> <span class="tok-c">// let them go</span>
-<span class="tok-p">});</span></pre>
+  <div class="hero-visual">
+    <div class="chat">
+      <div class="chat-top">
+        <span class="t"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg> Before you cancel</span>
+        <span class="x">✕</span>
+      </div>
+      <div class="chat-body">
+        <div class="bubble bot">Sorry to see you thinking about leaving — mind if I ask what's driving it?</div>
+        <div class="bubble me">Honestly, it's gotten too expensive for what we use.</div>
+        <div class="bubble bot">Fair. You're on <b>Growth ($199)</b> but only using one workspace — I can move you to <b>Starter ($49)</b> and keep all your data. Want that?</div>
+      </div>
+      <div class="chat-actions">
+        <button class="chat-cta" type="button" tabindex="-1">Switch to Starter — $49/mo</button>
+        <button class="chat-ghost" type="button" tabindex="-1">Just cancel</button>
+      </div>
     </div>
   </div>
 </header>
@@ -269,23 +283,23 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
     <div class="sec-head">
       <div class="kicker">Features</div>
       <h2>From cancel click to kept revenue.</h2>
-      <p>Drop the SDK in, let Offboard run the save, and read exactly what it learned — no prompts, no pipeline to babysit.</p>
+      <p>Every cancellation becomes a conversation, a decision, and — more often than you'd expect — a save.</p>
     </div>
     <div class="fcards">
       <div class="fcard">
-        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></span>
-        <h3>One import</h3>
-        <p>A single call behind your cancel button renders a short, theme-matched conversation — not a dead-end form.</p>
+        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <h3>AI exit interviews</h3>
+        <p>Instead of a checkbox nobody means, every leaving customer has a short, natural conversation that surfaces the real reason they're going.</p>
       </div>
       <div class="fcard">
-        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
-        <h3>Diagnose &amp; save</h3>
-        <p>Offboard finds the true reason and makes the right offer — a pause, a discount, a plan change — only when it's worth it.</p>
+        <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 4.5 2.5 6.5h9C17 13.5 19 12 19 9a7 7 0 0 0-7-7Z"/><path d="M9 18h6"/><path d="M10 21h4"/></svg></span>
+        <h3>Context-aware saves</h3>
+        <p>Offboard weighs who the customer is — their plan, usage, and history — against what they say, then makes the right call: a discount, a pause, a plan change, or nothing at all.</p>
       </div>
       <div class="fcard">
         <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        <h3>Measure it</h3>
-        <p>Every session flows to your dashboard: why users churn, which offers land, and the MRR you kept — read-only, per tenant.</p>
+        <h3>Revenue you can see</h3>
+        <p>Watch why customers leave, which saves land, and the recurring revenue you kept — your whole retention picture in real numbers.</p>
       </div>
     </div>
   </section>
@@ -298,19 +312,50 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
     </div>
     <div class="impact">
       <div class="icard">
-        <div class="lbl">Diagnosed</div>
+        <div class="lbl">Understand</div>
         <h4>The real reason</h4>
-        <p>Not a self-reported checkbox — Offboard reads the conversation and the account context to name the true cause.</p>
+        <p>A checkbox tells you nothing. A conversation — weighed against the customer's account — tells you exactly why they're leaving.</p>
       </div>
       <div class="icard">
-        <div class="lbl">In the moment</div>
+        <div class="lbl">Act</div>
         <h4>The right save</h4>
-        <p>The offer is chosen and made while the customer is still deciding — the only moment it changes minds.</p>
+        <p>The offer is decided and made while they're still on the cancel screen — the only moment that can change a mind.</p>
       </div>
       <div class="icard">
-        <div class="lbl">Measured</div>
-        <h4>Retained MRR</h4>
-        <p>Saves and kept revenue are attributed per tenant, so retention stops being a guess you argue about in a meeting.</p>
+        <div class="lbl">Prove</div>
+        <h4>Retained revenue</h4>
+        <p>See the customers you kept and the recurring revenue you saved — retention as a number, not an argument in a meeting.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="developers" class="devsec">
+    <div class="sec-head">
+      <div class="kicker">For developers</div>
+      <h2>Add it in an afternoon.</h2>
+      <p>One import behind your cancel button. Offboard runs the interview and the save, then hands your app a structured outcome to act on — you decide what happens next.</p>
+    </div>
+    <div class="install">
+      <span class="cmd mono"><span class="sig">$</span> npm install <span class="pkg">offboard</span></span>
+      <button class="copy" id="copyInstall" title="Copy" aria-label="Copy install command">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </button>
+    </div>
+    <div class="code-wrap">
+      <div class="window">
+        <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">cancel-button.js</span></div>
+<pre><span class="tok-k">import</span> Offboard <span class="tok-k">from</span> <span class="tok-s">"offboard"</span><span class="tok-p">;</span>
+
+Offboard<span class="tok-p">.</span><span class="tok-f">init</span><span class="tok-p">({</span> <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span> <span class="tok-p">});</span>
+
+<span class="tok-c">// Behind your “Cancel subscription” button:</span>
+Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><span class="tok-p">({</span>
+  <span class="tok-f">userId</span><span class="tok-p">:</span> <span class="tok-s">"user_123"</span><span class="tok-p">,</span>
+  <span class="tok-f">context</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-f">plan</span><span class="tok-p">:</span> <span class="tok-s">"Starter"</span><span class="tok-p">,</span> <span class="tok-f">mrr</span><span class="tok-p">:</span> <span class="tok-n">49</span><span class="tok-p">,</span> <span class="tok-f">tenure_days</span><span class="tok-p">:</span> <span class="tok-n">210</span> <span class="tok-p">},</span>
+
+  <span class="tok-f">onAccept</span><span class="tok-p">:</span> <span class="tok-p">(</span>outcome<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-f">applyOffer</span><span class="tok-p">(</span>outcome<span class="tok-p">),</span>   <span class="tok-c">// they took the save</span>
+  <span class="tok-f">onCancel</span><span class="tok-p">:</span> <span class="tok-p">()</span>        <span class="tok-k">=&gt;</span> <span class="tok-f">completeCancellation</span><span class="tok-p">()</span> <span class="tok-c">// let them go</span>
+<span class="tok-p">});</span></pre>
       </div>
     </div>
   </section>
@@ -318,7 +363,7 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
 
 <section class="band">
   <h2>Turn your cancel page into your best retention channel.</h2>
-  <p>Set up a tenant in minutes, then watch the saves — and the reasons — roll into your dashboard.</p>
+  <p>Set up in minutes and start turning cancellations into saved customers — with every reason and dollar tracked for you.</p>
   <div class="cta-row">
     <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
     <a href="/dashboard" class="btn btn-ghost btn-lg">Log in</a>
