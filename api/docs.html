@@ -200,11 +200,8 @@
     <a href="#identity">Verify identity</a>
     <a href="#theme">Match your look</a>
     <a href="#guarantees">Guarantees</a>
-    <div class="side-h">Reference</div>
-    <a href="#api">API reference</a>
+    <div class="side-h">Troubleshooting</div>
     <a href="#errors">Common errors</a>
-    <a href="#develop">Development</a>
-    <a href="#selfhost">Self-hosting</a>
   </aside>
 
   <main class="content">
@@ -218,9 +215,9 @@
 
     <div class="note"><strong>Compatibility.</strong> The widget is a <strong>web SDK</strong> — JavaScript/TypeScript,
       running in the browser. The framework-free core works with vanilla JS, React (dedicated hook), Next.js,
-      Vue, Svelte, or Angular. Your <strong>backend</strong> — which signs identity tokens and can call the
-      engine directly — is <strong>language-agnostic</strong>: the engine is a plain HTTP + JSON API and the token
-      is just HMAC-SHA256, so Python, Node, Java, Go, Ruby, PHP, C#, C++, or Rust all work.</div>
+      Vue, Svelte, or Angular. The only backend work is signing an identity token, which is a short
+      HMAC-SHA256 function — so your <strong>backend can be any language</strong> (Python, Node, Java, Go, Ruby,
+      PHP, C#, C++, Rust). See <a class="link" href="#identity">Verify identity</a>.</div>
 
     <h2 id="install"><span class="step">1</span>Install</h2>
     <p>The SDK is published to npm as <code>offboard</code>. It ships ESM with TypeScript types; the
@@ -412,114 +409,28 @@ export function signIdentity(secret, claims) {
     <p>The SDK enforces these so a cancel flow can never trap or mislead a user:</p>
     <ul>
       <li><strong>The “Just cancel” escape hatch is always rendered.</strong> Someone who chooses to answer is telling the truth; someone cornered types anything to escape.</li>
-      <li><strong>The conversation is bounded.</strong> The engine stops at 5 questions (usually fewer); the modal closes on the server's <code>done</code> signal.</li>
-      <li><strong>The model never authorizes anything.</strong> <code>intervention_id</code> is chosen by deterministic server-side policy; the SDK just relays it.</li>
+      <li><strong>The conversation is short and bounded.</strong> It stays a brief exchange and closes itself — it never turns into an interrogation.</li>
+      <li><strong>Offers are authorized server-side, never in the browser.</strong> The SDK only relays the decision, so a user can't unlock a save offer from devtools.</li>
       <li><strong>Transport failures never trap the user.</strong> On error the modal degrades to letting them cancel — it does not loop.</li>
     </ul>
 
-    <h2 id="api">API reference</h2>
-    <p>Most integrations never call the engine directly — the SDK drives the session endpoints for you.
-      Use the HTTP API when you're integrating from a non-JS surface, building a custom flow, or reading
-      insights from your backend. Base URL: <code>https://offboard.fly.dev</code> (or your self-hosted engine).
-      All requests and responses are JSON.</p>
-    <div class="explore">
-      <a href="/api-explorer" target="_blank">Interactive explorer <span class="mono">/api-explorer</span></a>
-      <a href="/redoc" target="_blank">ReDoc <span class="mono">/redoc</span></a>
-      <a href="/openapi.json" target="_blank">OpenAPI spec <span class="mono">/openapi.json</span></a>
-    </div>
-
-    <div class="grp">Session flow · auth: <code>Bearer pk_…</code></div>
-    <table class="fields">
-      <tbody>
-        <tr><td><span class="m post">POST</span><span class="ep">/sessions</span></td><td>Open an interview for a user. Body: <code>user_id</code>, optional <code>context</code>, and <code>identity_token</code> when your key is secured. Returns <code>{ session_id, message }</code>.</td></tr>
-        <tr><td><span class="m post">POST</span><span class="ep">/sessions/{id}/turn</span></td><td>Send the user's reply. Body: <code>user_message</code>. Returns <code>{ message, done }</code>, or <code>{ done: true, outcome }</code> when the interview concludes.</td></tr>
-        <tr><td><span class="m post">POST</span><span class="ep">/sessions/{id}/resolution</span></td><td>Record whether the user took the offer. Body: <code>accepted</code> (bool). This is what powers save-rate and retained-MRR.</td></tr>
-        <tr><td><span class="m post">POST</span><span class="ep">/outcomes</span></td><td>Report a durable retention check later (was the saved user still subscribed?). Body: <code>user_id</code>, <code>active</code>, <code>observed_at</code>. Feeds the honest “did the save stick?” metric.</td></tr>
-      </tbody>
-    </table>
-
-    <div class="grp">Insights · auth: <code>Bearer &lt;signing_secret&gt;</code> (or admin key)</div>
-    <table class="fields">
-      <tbody>
-        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/analytics</span></td><td>Rolled-up churn intelligence: reasons, save rate, retained/at-risk MRR, and a daily timeseries. Query: <code>days</code> (default 30).</td></tr>
-        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/causal</span></td><td>Holdout lift — treatment vs. control retention, isolating the saves the flow actually caused.</td></tr>
-        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/sessions</span></td><td>Recent interviews as summary rows. Query: <code>limit</code> (≤200), <code>days</code>.</td></tr>
-        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/sessions/{sid}</span></td><td>Full decision inspection for one session: transcript plus the authorization audit trail.</td></tr>
-        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/activity</span></td><td>Operational event log — rate limits, rejected identity tokens, model errors, expired sessions.</td></tr>
-      </tbody>
-    </table>
-
-    <div class="grp">Provisioning &amp; health</div>
-    <table class="fields">
-      <tbody>
-        <tr><td><span class="m post">POST</span><span class="ep">/onboard</span></td><td>Self-serve tenant creation. Auth: <code>Bearer &lt;signup_code&gt;</code>. Create-only — it can't read or delete other tenants.</td></tr>
-        <tr><td><span class="m other">CRUD</span><span class="ep">/configs</span></td><td>Operator surface (POST create · GET list · PATCH · DELETE), gated by the master admin key.</td></tr>
-        <tr><td><span class="m get">GET</span><span class="ep">/health</span></td><td>Liveness probe. No auth.</td></tr>
-      </tbody>
-    </table>
-    <div class="note">Auth model: the browser uses a public <code>pk_…</code> key (not a secret — paid offers are gated by
-      signed identity tokens instead). Insights and provisioning use secrets that never touch the browser. See
-      <a class="link" href="#identity">Verify identity</a>.</div>
-
     <h2 id="errors">Common errors</h2>
-    <p>Every endpoint returns <code>{ "detail": "…" }</code> with a matching HTTP status. The ones you'll
-      actually hit, and what to do about each:</p>
-    <div class="note warn"><strong>Paid offers fall back to nothing without a valid token.</strong> When your
-      key has a signing secret, a session that omits <code>identityToken</code> — or sends one older than 10
-      minutes — is rejected with <code>401</code> rather than priced off the (forgeable) request body. Sign the
-      token on your backend at click-time; see <a class="link" href="#identity">Verify identity</a>.</div>
+    <p>The SDK surfaces failures with an HTTP status and a short message. The ones you'll actually hit,
+      and what to do about each:</p>
+    <div class="note warn"><strong>Paid offers require a valid token.</strong> When your key has a signing
+      secret, a session with no <code>identityToken</code> — or one older than 10 minutes — is rejected with
+      <code>401</code> rather than granting a paid offer. Sign the token on your backend at click-time; see
+      <a class="link" href="#identity">Verify identity</a>.</div>
     <table class="fields">
       <thead><tr><th>Status</th><th>Cause</th><th>Fix</th></tr></thead>
       <tbody>
-        <tr><td><code>401</code> missing bearer token</td><td>No <code>Authorization: Bearer pk_…</code> header.</td><td>Call <code>Offboard.init()</code> with your public key; direct HTTP callers must send it on <em>every</em> request — <code>turn</code> and <code>resolution</code> included.</td></tr>
-        <tr><td><code>401</code> invalid public key</td><td>Key is mistyped, or the tenant was deleted.</td><td>Copy the <code>pk_…</code> from onboarding.</td></tr>
+        <tr><td><code>401</code> invalid public key</td><td>Key is missing, mistyped, or the tenant was removed.</td><td>Call <code>Offboard.init()</code> with the <code>pk_…</code> from onboarding before opening the flow.</td></tr>
         <tr><td><code>401</code> requires a signed identity_token</td><td>Key has a signing secret but no token was sent.</td><td>Mint one on your backend and pass it as <code>identityToken</code>.</td></tr>
         <tr><td><code>401</code> token expired / bad signature</td><td>Token older than 10 min, or signed with the wrong secret.</td><td>Sign at click-time with the current <code>signing_secret</code> — never cache it.</td></tr>
-        <tr><td><code>403</code> origin not allowed</td><td>The page's origin isn't in the tenant's allowlist.</td><td>Add it to <code>allowed_origins</code> (onboarding, or <code>PATCH /configs/{id}</code>).</td></tr>
-        <tr><td><code>404</code> session not found</td><td>The <code>session_id</code> is unknown or expired mid-flow.</td><td>Start a fresh session; don't reuse an id across page loads.</td></tr>
-        <tr><td><code>429</code> rate limit exceeded</td><td>Too many sessions or turns from one key or IP.</td><td>Back off for the <code>Retry-After</code> seconds. The limits clear a real cancel flow, so this usually means a loop or a script.</td></tr>
-        <tr><td><code>502</code> engine error</td><td>An upstream model call failed or timed out.</td><td>Transient. The modal auto-degrades to letting the user cancel — no one is trapped — so just retry the session.</td></tr>
-      </tbody>
-    </table>
-
-    <h2 id="develop">Development</h2>
-    <p>Building the SDK from source (the wire types in <code>src/types.ts</code> mirror the engine's
-      <code>taxonomy.py</code> — keep them in lockstep; that shared <code>Outcome</code> shape is the contract):</p>
-    <div class="window">
-      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">terminal — sdk/</span>
-        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
-<pre data-raw='npm install
-npm run build       # tsc -> dist/
-npm run typecheck   # strict, no emit'><span class="tok-f">npm</span> install
-<span class="tok-f">npm</span> run build       <span class="tok-c"># tsc -&gt; dist/</span>
-<span class="tok-f">npm</span> run typecheck   <span class="tok-c"># strict, no emit</span></pre>
-    </div>
-    <p>The package ships ESM with two entry points: <code>offboard</code> (framework-free core) and
-      <code>offboard/react</code> (the hook; <code>react</code> is an optional peer dependency).</p>
-
-    <h2 id="selfhost">Self-hosting the engine</h2>
-    <p>The engine is a Python (FastAPI) service — you don't need it to <em>use</em> Offboard (it's hosted),
-      only to run your own. Point the SDK at it with <code>apiBaseUrl</code>:</p>
-    <div class="window">
-      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">init.js</span>
-        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
-<pre data-raw='Offboard.init({
-  publicKey: "pk_live_…",
-  apiBaseUrl: "https://offboard.your-domain.com",
-});'>Offboard<span class="tok-p">.</span><span class="tok-f">init</span><span class="tok-p">({</span>
-  <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span><span class="tok-p">,</span>
-  <span class="tok-f">apiBaseUrl</span><span class="tok-p">:</span> <span class="tok-s">"https://offboard.your-domain.com"</span><span class="tok-p">,</span>
-<span class="tok-p">});</span></pre>
-    </div>
-    <p>Key environment variables when running the engine:</p>
-    <table class="fields">
-      <tbody>
-        <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Required — the model behind the interview.</td></tr>
-        <tr><td><code>OFFBOARD_CONFIG_DIR</code></td><td>Where tenant config files live.</td></tr>
-        <tr><td><code>OFFBOARD_RUNS_DIR</code></td><td>Append-only JSONL data (transcripts, resolutions, outcomes). Put it on a mounted volume so it survives redeploys.</td></tr>
-        <tr><td><code>OFFBOARD_ADMIN_KEY</code> / <code>OFFBOARD_SIGNUP_KEY</code></td><td>Enable the admin and self-serve surfaces (each 404s when unset).</td></tr>
-        <tr><td><code>OFFBOARD_REDIS_URL</code></td><td>Shared session store + rate limiter for multi-instance / zero-downtime deploys.</td></tr>
-        <tr><td><code>OFFBOARD_TRUSTED_PROXY_HOPS</code></td><td>Proxy hops in front of the app, so per-IP rate limits read the real client IP.</td></tr>
+        <tr><td><code>403</code> origin not allowed</td><td>The page's origin isn't in your allowlist.</td><td>Add it to your allowed origins during onboarding.</td></tr>
+        <tr><td><code>404</code> session not found</td><td>The session is unknown or expired mid-flow.</td><td>Start a fresh flow; don't reuse a session across page loads.</td></tr>
+        <tr><td><code>429</code> rate limit exceeded</td><td>Too many attempts from one key or IP.</td><td>Back off for the <code>Retry-After</code> seconds; a normal cancel flow won't trip this.</td></tr>
+        <tr><td><code>502</code> temporary error</td><td>A transient upstream failure.</td><td>The modal auto-degrades to letting the user cancel — no one is trapped — so just retry.</td></tr>
       </tbody>
     </table>
 
@@ -581,6 +492,11 @@ npm run typecheck   # strict, no emit'><span class="tok-f">npm</span> install
     }
   }, { rootMargin: "-70px 0px -70% 0px" });
   document.querySelectorAll(".content h2[id]").forEach((h) => spy.observe(h));
+</script>
+
+<!-- Prerender same-origin links on hover/pointerdown so navigation feels instant. -->
+<script type="speculationrules">
+{ "prerender": [{ "where": { "href_matches": "/*" }, "eagerness": "moderate" }] }
 </script>
 </body>
 </html>

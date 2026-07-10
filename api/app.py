@@ -167,10 +167,14 @@ def create_app(
         title="Offboard Engine API",
         version="0.1.0",
         root_path=os.getenv("OFFBOARD_ROOT_PATH", ""),
-        # /docs is our human-facing install/integration guide (docs.html), so move FastAPI's
-        # built-in interactive API explorer to /api-explorer. The OpenAPI spec (/openapi.json)
-        # and ReDoc (/redoc) stay at their defaults.
-        docs_url="/api-explorer",
+        # Public docs are the human-facing SDK guide at /docs (docs.html). We deliberately do NOT
+        # expose the auto-generated API surface: Swagger, ReDoc, and the OpenAPI schema would
+        # enumerate every internal endpoint (admin /configs, /insights, provisioning) and their
+        # shapes. Disabling all three keeps /docs free for the guide and avoids advertising the
+        # internal system shape to the public.
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
     app.add_middleware(
         CORSMiddleware,

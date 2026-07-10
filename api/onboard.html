@@ -221,5 +221,10 @@
   $("submit").onclick = submit;
   addOfferRow();
 </script>
+
+<!-- Prerender same-origin links on hover/pointerdown so navigation feels instant. -->
+<script type="speculationrules">
+{ "prerender": [{ "where": { "href_matches": "/*" }, "eagerness": "moderate" }] }
+</script>
 </body>
 </html>

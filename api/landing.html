@@ -350,5 +350,10 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
     } catch { toast("Copy failed"); }
   });
 </script>
+
+<!-- Prerender same-origin links on hover/pointerdown so navigation feels instant. -->
+<script type="speculationrules">
+{ "prerender": [{ "where": { "href_matches": "/*" }, "eagerness": "moderate" }] }
+</script>
 </body>
 </html>
