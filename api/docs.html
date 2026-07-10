@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<title>Offboard — install &amp; integration docs</title>
+<meta name="description" content="Install the Offboard web SDK and wire the AI cancel flow into your app in minutes — vanilla JS or React, with signed identity tokens for paid save offers." />
+<style>
+  :root {
+    --bg: #ffffff; --bg-2: #fafafa; --surface: #ffffff;
+    --fg: #0a0a0a; --fg-2: #4a4a4f; --muted: #8a8a90;
+    --border: #ededf0; --border-2: #e2e2e6;
+    --brand: #d97757; --brand-fg: #ffffff;
+    --btn: #0a0a0a; --btn-fg: #ffffff;
+    --glow: rgba(217,119,87,.14);
+    --code-inline: #b5451f; --code-inline-bg: #f6ede9;
+    --radius: 14px; --radius-sm: 9px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000; --bg-2: #0a0a0b; --surface: #0e0e10;
+      --fg: #f6f6f7; --fg-2: #a7a7ae; --muted: #6e6e77;
+      --border: #1c1c20; --border-2: #26262c;
+      --brand: #e08a6d; --brand-fg: #16100d;
+      --btn: #f6f6f7; --btn-fg: #0a0a0a;
+      --glow: rgba(217,119,87,.20);
+      --code-inline: #e8a789; --code-inline-bg: #201512;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 14px;
+    padding: 14px 24px; background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 640; letter-spacing: -.02em; font-size: 15px; }
+  .brand .mark { width: 22px; height: 22px; flex: none; }
+  .spacer { flex: 1; }
+  .nav-link { color: var(--fg-2); font-size: 13.5px; font-weight: 500; }
+  .nav-link:hover { color: var(--fg); }
+  .nav-link.on { color: var(--fg); }
+  .nav-links { display: none; gap: 22px; }
+  @media (min-width: 680px) { .nav-links { display: flex; } }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 36px; padding: 0 15px; font: inherit; font-size: 13.5px; font-weight: 560;
+    border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap;
+    transition: filter .12s, background .12s, color .12s, border-color .12s, transform .06s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-solid { color: var(--btn-fg); background: var(--btn); border: 1px solid transparent; }
+  .btn-solid:hover { filter: brightness(1.12); }
+
+  /* ---- Docs layout ---- */
+  .shell { max-width: 1060px; margin: 0 auto; padding: 0 24px; display: grid; gap: 48px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .shell { grid-template-columns: 210px 1fr; } }
+
+  .side { display: none; }
+  @media (min-width: 900px) {
+    .side { display: block; align-self: start; position: sticky; top: 78px; padding: 40px 0; }
+  }
+  .side .side-h { font-size: 11px; font-weight: 660; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 9px; }
+  .side .side-h:first-child { margin-top: 0; }
+  .side a { display: block; color: var(--fg-2); font-size: 13.5px; padding: 4px 0; border-left: 2px solid transparent; padding-left: 12px; margin-left: -2px; transition: color .12s, border-color .12s; }
+  .side a:hover { color: var(--fg); }
+  .side a.active { color: var(--brand); border-left-color: var(--brand); font-weight: 560; }
+
+  .content { min-width: 0; padding: 40px 0 90px; max-width: 720px; }
+  .lede-block { margin-bottom: 8px; }
+  .kicker { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--brand); text-transform: uppercase; }
+  .content h1 { font-size: clamp(30px, 5vw, 40px); letter-spacing: -.035em; margin: 12px 0 14px; font-weight: 650; }
+  .content > p.intro { color: var(--fg-2); font-size: 16px; max-width: 60ch; margin: 0 0 10px; }
+
+  .content h2 { font-size: 23px; letter-spacing: -.025em; margin: 52px 0 6px; font-weight: 640; scroll-margin-top: 78px; padding-top: 4px; }
+  .content h2 .step { color: var(--muted); font-weight: 600; margin-right: 10px; }
+  .content h3 { font-size: 16px; letter-spacing: -.01em; margin: 30px 0 6px; font-weight: 620; }
+  .content p { color: var(--fg-2); margin: 12px 0; }
+  .content p strong, .content li strong { color: var(--fg); font-weight: 600; }
+  .content ul { color: var(--fg-2); margin: 12px 0; padding-left: 20px; }
+  .content li { margin: 7px 0; }
+  .content a.link { color: var(--brand); font-weight: 550; }
+  .content a.link:hover { text-decoration: underline; }
+  .hr { height: 1px; background: var(--border); border: 0; margin: 44px 0 0; }
+
+  code:not(pre code) {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; font-size: .87em;
+    color: var(--code-inline); background: var(--code-inline-bg);
+    padding: 1.5px 5px; border-radius: 5px; white-space: nowrap;
+  }
+
+  /* Copyable one-liner (install) */
+  .cmd-line {
+    display: flex; align-items: center; gap: 12px; margin: 18px 0;
+    padding: 12px 12px 12px 18px; border-radius: var(--radius-sm); background: var(--surface);
+    border: 1px solid var(--border-2); font-size: 14px; max-width: 420px;
+  }
+  .cmd-line .txt { flex: 1; }
+  .cmd-line .sig { color: var(--muted); } .cmd-line .pkg { color: var(--brand); }
+
+  /* Code window (matches landing) */
+  .window { text-align: left; background: #0d0d12; border: 1px solid #232330; border-radius: var(--radius);
+    box-shadow: 0 24px 60px -34px rgba(0,0,0,.5); overflow: hidden; margin: 18px 0; }
+  .window .titlebar { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid #1e1e29; background: #0b0b0f; }
+  .window .dots { display: flex; gap: 7px; }
+  .window .dots i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .window .dots i:nth-child(1){ background:#ff5f57; } .window .dots i:nth-child(2){ background:#febc2e; } .window .dots i:nth-child(3){ background:#28c840; }
+  .window .fname { margin-left: 6px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: #6f6f80; flex: 1; }
+  .window .copy { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border: 0; border-radius: 7px; background: #17171f; color: #8a8a9c; cursor: pointer; transition: color .12s, background .12s; }
+  .window .copy:hover { color: #d7d7e2; background: #20202a; }
+  .window .copy.done { color: #8fd6a0; }
+  .window .copy svg { width: 14px; height: 14px; }
+  .window pre { margin: 0; padding: 18px 20px; overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; font-size: 12.8px; line-height: 1.72; color: #d7d7e2; tab-size: 2; }
+  .tok-c { color: #6b6b7d; font-style: italic; } .tok-k { color: #e0a07f; } .tok-s { color: #8fd6a0; }
+  .tok-f { color: #c3b6f5; } .tok-n { color: #82b8f0; } .tok-p { color: #7f7f92; }
+
+  /* Callouts */
+  .note { margin: 20px 0; padding: 14px 16px; border-radius: var(--radius-sm); font-size: 13.8px; color: var(--fg-2);
+    background: var(--surface); border: 1px solid var(--border-2); border-left: 3px solid var(--brand); }
+  .note strong { color: var(--fg); }
+  .note.warn { border-left-color: #e0a07f; }
+
+  /* Outcome fields table */
+  .fields { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.6px; }
+  .fields th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; padding: 0 12px 9px 0; }
+  .fields td { padding: 9px 12px 9px 0; border-top: 1px solid var(--border); vertical-align: top; color: var(--fg-2); }
+  .fields td:first-child { white-space: nowrap; }
+  .fields code { white-space: nowrap; }
+
+  /* Version dropdown */
+  .ver { height: 34px; border: 1px solid var(--border-2); border-radius: var(--radius-sm); background: var(--surface);
+    color: var(--fg-2); font: inherit; font-size: 13px; padding: 0 8px; cursor: pointer; }
+  .ver:hover { color: var(--fg); }
+
+  /* API method badges + endpoint rows */
+  .m { display: inline-block; min-width: 46px; text-align: center; font-family: ui-monospace, Menlo, monospace;
+    font-size: 10.5px; font-weight: 700; padding: 3px 6px; border-radius: 5px; margin-right: 9px; letter-spacing: .03em; }
+  .m.get { color: #067647; background: rgba(6,118,71,.11); }
+  .m.post { color: var(--brand); background: var(--code-inline-bg); }
+  .m.other { color: var(--fg-2); background: var(--code-inline-bg); }
+  .ep { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--fg); white-space: nowrap; }
+  .grp { margin: 26px 0 6px; font-size: 12px; font-weight: 660; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .explore { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+  .explore a { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-2); background: var(--surface); color: var(--fg); font-size: 13.5px; font-weight: 550; }
+  .explore a:hover { border-color: var(--fg-2); }
+  .explore a .mono { color: var(--brand); }
+
+  footer { border-top: 1px solid var(--border); margin-top: 20px; }
+  .foot { max-width: 1060px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; padding: 30px 24px 70px; }
+  .foot .brand { font-size: 14px; }
+  .foot .links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  .foot a { color: var(--fg-2); font-size: 13px; } .foot a:hover { color: var(--fg); }
+  .foot .cpy { color: var(--muted); font-size: 12.5px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0;
+    background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 550; padding: 9px 16px; border-radius: 999px;
+    pointer-events: none; transition: opacity .16s, transform .16s; z-index: 60; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/" class="brand">
+    <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+    Offboard
+  </a>
+  <div class="spacer"></div>
+  <nav class="nav-links">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/docs" class="nav-link on">Docs</a>
+    <a href="/onboard" class="nav-link">Set up</a>
+  </nav>
+  <select class="ver" id="ver" aria-label="Documentation version" title="Documentation version">
+    <option value="0.1.2">v0.1.2 · latest</option>
+  </select>
+  <a href="/dashboard" class="btn btn-solid">Dashboard</a>
+</div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="side-h">Getting started</div>
+    <a href="#install">Install</a>
+    <a href="#keys">Get your keys</a>
+    <a href="#quickstart">Quick start</a>
+    <a href="#react">React</a>
+    <div class="side-h">Going live</div>
+    <a href="#outcomes">Handle the outcome</a>
+    <a href="#identity">Verify identity</a>
+    <a href="#theme">Match your look</a>
+    <a href="#guarantees">Guarantees</a>
+    <div class="side-h">Reference</div>
+    <a href="#api">API reference</a>
+    <a href="#errors">Common errors</a>
+    <a href="#develop">Development</a>
+    <a href="#selfhost">Self-hosting</a>
+  </aside>
+
+  <main class="content">
+    <div class="lede-block">
+      <div class="kicker">Documentation</div>
+      <h1>Install &amp; integrate Offboard</h1>
+    </div>
+    <p class="intro">Offboard is a drop-in web SDK that renders an AI exit-interview modal inside your
+      cancel flow, runs a brief (≤5-question) interview, and hands your app a structured outcome — the
+      real churn reason plus any save offer the engine authorized. Wiring it up is one import and one call.</p>
+
+    <div class="note"><strong>Compatibility.</strong> The widget is a <strong>web SDK</strong> — JavaScript/TypeScript,
+      running in the browser. The framework-free core works with vanilla JS, React (dedicated hook), Next.js,
+      Vue, Svelte, or Angular. Your <strong>backend</strong> — which signs identity tokens and can call the
+      engine directly — is <strong>language-agnostic</strong>: the engine is a plain HTTP + JSON API and the token
+      is just HMAC-SHA256, so Python, Node, Java, Go, Ruby, PHP, C#, C++, or Rust all work.</div>
+
+    <h2 id="install"><span class="step">1</span>Install</h2>
+    <p>The SDK is published to npm as <code>offboard</code>. It ships ESM with TypeScript types; the
+      core import is framework-free.</p>
+    <div class="cmd-line mono">
+      <span class="txt"><span class="sig">$</span> npm install <span class="pkg">offboard</span></span>
+      <button class="copy" data-copy="npm install offboard" title="Copy" aria-label="Copy install command">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </button>
+    </div>
+
+    <h2 id="keys"><span class="step">2</span>Get your keys</h2>
+    <p><a class="link" href="/onboard">Set up a tenant</a> to generate two keys instantly — no account, no waiting:</p>
+    <ul>
+      <li><strong><code>public_key</code></strong> (<code>pk_…</code>) — safe to ship in your frontend. It identifies your tenant to the engine.</li>
+      <li><strong><code>signing_secret</code></strong> (<code>ss_…</code>) — <strong>backend only</strong>. It signs the identity tokens that authorize paid save offers. Shown once at setup — store it now.</li>
+    </ul>
+    <div class="note">Onboarding also captures your product context, pricing, and the save offers you're
+      willing to make. The engine only ever offers what <em>you</em> authorized — it never invents a discount.</div>
+
+    <h2 id="quickstart"><span class="step">3</span>Quick start</h2>
+    <p>Initialize once at startup, then open the flow behind your “Cancel subscription” button. The SDK
+      renders the conversation and the authorized offer; you just react to the user's choice.</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">cancel-button.js</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='import Offboard from "offboard";
+
+// Once, at startup.
+Offboard.init({ publicKey: "pk_live_…" });
+
+// When the user clicks "Cancel subscription":
+cancelButton.addEventListener("click", () => {
+  Offboard.showCancelFlow({
+    userId: "user_123",
+    // Optional context — the richer it is, the sharper the diagnosis.
+    context: {
+      plan: "Starter", mrr: 49, tenure_days: 210,
+      logins_last_30d: 27, activated: true,
+      usage_summary: "Daily active; hitting the event cap.",
+    },
+    onAccept: (outcome) => applyOffer(outcome),      // they took the save
+    onCancel: (outcome) => completeCancellation(),   // let them go
+  });
+});'><span class="tok-k">import</span> Offboard <span class="tok-k">from</span> <span class="tok-s">"offboard"</span><span class="tok-p">;</span>
+
+<span class="tok-c">// Once, at startup.</span>
+Offboard<span class="tok-p">.</span><span class="tok-f">init</span><span class="tok-p">({</span> <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span> <span class="tok-p">});</span>
+
+<span class="tok-c">// When the user clicks "Cancel subscription":</span>
+cancelButton<span class="tok-p">.</span><span class="tok-f">addEventListener</span><span class="tok-p">(</span><span class="tok-s">"click"</span><span class="tok-p">,</span> <span class="tok-p">()</span> <span class="tok-k">=&gt;</span> <span class="tok-p">{</span>
+  Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><span class="tok-p">({</span>
+    <span class="tok-f">userId</span><span class="tok-p">:</span> <span class="tok-s">"user_123"</span><span class="tok-p">,</span>
+    <span class="tok-c">// Optional context — the richer it is, the sharper the diagnosis.</span>
+    <span class="tok-f">context</span><span class="tok-p">:</span> <span class="tok-p">{</span>
+      <span class="tok-f">plan</span><span class="tok-p">:</span> <span class="tok-s">"Starter"</span><span class="tok-p">,</span> <span class="tok-f">mrr</span><span class="tok-p">:</span> <span class="tok-n">49</span><span class="tok-p">,</span> <span class="tok-f">tenure_days</span><span class="tok-p">:</span> <span class="tok-n">210</span><span class="tok-p">,</span>
+      <span class="tok-f">logins_last_30d</span><span class="tok-p">:</span> <span class="tok-n">27</span><span class="tok-p">,</span> <span class="tok-f">activated</span><span class="tok-p">:</span> <span class="tok-k">true</span><span class="tok-p">,</span>
+      <span class="tok-f">usage_summary</span><span class="tok-p">:</span> <span class="tok-s">"Daily active; hitting the event cap."</span><span class="tok-p">,</span>
+    <span class="tok-p">},</span>
+    <span class="tok-f">onAccept</span><span class="tok-p">:</span> <span class="tok-p">(</span>outcome<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-f">applyOffer</span><span class="tok-p">(</span>outcome<span class="tok-p">),</span>      <span class="tok-c">// they took the save</span>
+    <span class="tok-f">onCancel</span><span class="tok-p">:</span> <span class="tok-p">(</span>outcome<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-f">completeCancellation</span><span class="tok-p">(),</span>   <span class="tok-c">// let them go</span>
+  <span class="tok-p">});</span>
+<span class="tok-p">});</span></pre>
+    </div>
+    <div class="note warn"><strong>Offboard never touches Stripe.</strong> On <code>onAccept</code> you apply
+      the offer yourself using <code>outcome.intervention.id</code>. The SDK only relays the decision.</div>
+
+    <h2 id="react"><span class="step">4</span>React</h2>
+    <p><code>offboard/react</code> exposes a hook. <code>react</code> is an optional peer dependency —
+      the core import stays framework-free.</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">CancelButton.jsx</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='import { useOffboardCancelFlow } from "offboard/react";
+
+function CancelButton({ user }) {
+  const cancel = useOffboardCancelFlow({
+    publicKey: "pk_live_…",              // or call Offboard.init() once elsewhere
+    userId: user.id,
+    identityToken: user.offboardToken,   // required for paid offers — see "Verify identity"
+    onAccept: (o) => applyOffer(o),
+    onCancel: () => completeCancellation(),
+  });
+  return <button onClick={cancel}>Cancel subscription</button>;
+}'><span class="tok-k">import</span> <span class="tok-p">{</span> useOffboardCancelFlow <span class="tok-p">}</span> <span class="tok-k">from</span> <span class="tok-s">"offboard/react"</span><span class="tok-p">;</span>
+
+<span class="tok-k">function</span> <span class="tok-f">CancelButton</span><span class="tok-p">({</span> user <span class="tok-p">})</span> <span class="tok-p">{</span>
+  <span class="tok-k">const</span> cancel <span class="tok-p">=</span> <span class="tok-f">useOffboardCancelFlow</span><span class="tok-p">({</span>
+    <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span><span class="tok-p">,</span>              <span class="tok-c">// or call Offboard.init() once elsewhere</span>
+    <span class="tok-f">userId</span><span class="tok-p">:</span> user<span class="tok-p">.</span>id<span class="tok-p">,</span>
+    <span class="tok-f">identityToken</span><span class="tok-p">:</span> user<span class="tok-p">.</span>offboardToken<span class="tok-p">,</span>   <span class="tok-c">// required for paid offers</span>
+    <span class="tok-f">onAccept</span><span class="tok-p">:</span> <span class="tok-p">(</span>o<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> <span class="tok-f">applyOffer</span><span class="tok-p">(</span>o<span class="tok-p">),</span>
+    <span class="tok-f">onCancel</span><span class="tok-p">:</span> <span class="tok-p">()</span> <span class="tok-k">=&gt;</span> <span class="tok-f">completeCancellation</span><span class="tok-p">(),</span>
+  <span class="tok-p">});</span>
+  <span class="tok-k">return</span> <span class="tok-p">&lt;</span>button <span class="tok-f">onClick</span><span class="tok-p">={</span>cancel<span class="tok-p">}&gt;</span>Cancel subscription<span class="tok-p">&lt;/</span>button<span class="tok-p">&gt;;</span>
+<span class="tok-p">}</span></pre>
+    </div>
+
+    <h2 id="outcomes">Handle the outcome</h2>
+    <p>Both <code>onAccept</code> and <code>onCancel</code> receive the same <code>Outcome</code> object.
+      It's the contract between the SDK and the engine — read from it, don't re-derive the decision.</p>
+    <table class="fields">
+      <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>reason</code></td><td>The <strong>real</strong> diagnosed churn reason (e.g. <code>price_value_mismatch</code>, <code>never_activated</code>) — not a self-reported checkbox.</td></tr>
+        <tr><td><code>intervention.id</code></td><td>The authorized save action to apply on accept (or <code>null</code> if none was offered).</td></tr>
+        <tr><td><code>mode</code></td><td><code>"act"</code> (auto-apply) or <code>"suggest"</code> (route to a human for approval).</td></tr>
+        <tr><td><code>confidence</code></td><td>How sure the engine is of the diagnosis.</td></tr>
+      </tbody>
+    </table>
+    <p>There's also an optional <code>onResolved(outcome)</code> callback that fires when the interview
+      concludes (before the offer step) — handy for analytics.</p>
+
+    <h2 id="identity">Verify identity <span class="step" style="margin-left:8px">required for paid offers</span></h2>
+    <p>The cancel flow runs in the browser, so <strong>anything the browser sends can be forged</strong>.
+      If a user opens devtools and posts <code>mrr: 99999</code>, they must not unlock your richest offer.
+      So when your key has a signing secret, the engine <strong>ignores the raw <code>context</code>
+      economics</strong> and prices the save only off a token your backend signs.</p>
+    <ol style="color:var(--fg-2);padding-left:20px;">
+      <li style="margin:7px 0">Your server signs the user's real economics with your <code>signing_secret</code> (never expose it to the browser).</li>
+      <li style="margin:7px 0">Hand the token to your frontend and pass it as <code>identityToken</code>. The engine verifies the HMAC and authorizes off the signed claims.</li>
+    </ol>
+    <p>The token is <code>base64url(payload) + "." + base64url(HMAC_SHA256(secret, payload))</code>, where
+      <code>payload</code> is JSON of the user fields plus <code>iat</code> (issued-at, unix seconds).
+      Tokens expire after 10 minutes. Any language can mint it:</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">sign-token.js — runs on YOUR backend</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='import { createHmac } from "node:crypto";
+
+const b64url = (b) => Buffer.from(b).toString("base64url");
+
+export function signIdentity(secret, claims) {
+  const payload = JSON.stringify({
+    ...claims,                          // user_id, plan, mrr, tenure_days, activated…
+    iat: Math.floor(Date.now() / 1000), // expires 10 min later
+  });
+  const sig = createHmac("sha256", secret).update(payload).digest();
+  return `${b64url(payload)}.${b64url(sig)}`;
+}
+
+// signIdentity(process.env.OFFBOARD_SECRET, {
+//   user_id: "user_123", plan: "Growth", mrr: 199, tenure_days: 210, activated: true,
+// });'><span class="tok-k">import</span> <span class="tok-p">{</span> createHmac <span class="tok-p">}</span> <span class="tok-k">from</span> <span class="tok-s">"node:crypto"</span><span class="tok-p">;</span>
+
+<span class="tok-k">const</span> <span class="tok-f">b64url</span> <span class="tok-p">=</span> <span class="tok-p">(</span>b<span class="tok-p">)</span> <span class="tok-k">=&gt;</span> Buffer<span class="tok-p">.</span><span class="tok-f">from</span><span class="tok-p">(</span>b<span class="tok-p">).</span><span class="tok-f">toString</span><span class="tok-p">(</span><span class="tok-s">"base64url"</span><span class="tok-p">);</span>
+
+<span class="tok-k">export function</span> <span class="tok-f">signIdentity</span><span class="tok-p">(</span>secret<span class="tok-p">,</span> claims<span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-k">const</span> payload <span class="tok-p">=</span> JSON<span class="tok-p">.</span><span class="tok-f">stringify</span><span class="tok-p">({</span>
+    <span class="tok-p">...</span>claims<span class="tok-p">,</span>                          <span class="tok-c">// user_id, plan, mrr, tenure_days, activated…</span>
+    <span class="tok-f">iat</span><span class="tok-p">:</span> Math<span class="tok-p">.</span><span class="tok-f">floor</span><span class="tok-p">(</span>Date<span class="tok-p">.</span><span class="tok-f">now</span><span class="tok-p">()</span> <span class="tok-p">/</span> <span class="tok-n">1000</span><span class="tok-p">),</span> <span class="tok-c">// expires 10 min later</span>
+  <span class="tok-p">});</span>
+  <span class="tok-k">const</span> sig <span class="tok-p">=</span> <span class="tok-f">createHmac</span><span class="tok-p">(</span><span class="tok-s">"sha256"</span><span class="tok-p">,</span> secret<span class="tok-p">).</span><span class="tok-f">update</span><span class="tok-p">(</span>payload<span class="tok-p">).</span><span class="tok-f">digest</span><span class="tok-p">();</span>
+  <span class="tok-k">return</span> <span class="tok-s">`${</span>b64url<span class="tok-p">(</span>payload<span class="tok-p">)</span><span class="tok-s">}.${</span>b64url<span class="tok-p">(</span>sig<span class="tok-p">)</span><span class="tok-s">}`</span><span class="tok-p">;</span>
+<span class="tok-p">}</span></pre>
+    </div>
+    <div class="note warn">Keys <strong>without</strong> a signing secret (local dev / the demo) trust the
+      request body as-is. Never ship a production cancel flow on an unsecured key.</div>
+
+    <h2 id="theme">Match your look</h2>
+    <p>The widget renders a neutral, theme-aware (light/dark) surface by default. Pass a <code>theme</code>
+      to make it look like your product. Colours are <strong>raw HSL triples</strong> —
+      <code>"222 47% 11%"</code>, not <code>#hex</code>.</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">theme.js</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='Offboard.showCancelFlow({
+  userId: "user_123",
+  theme: {
+    adoptHostTokens: true,   // inherit your shadcn/ui CSS vars — colours + radius, both modes
+    accent: "222 47% 11%",   // …or just set a brand accent (primary CTA + send button)
+  },
+  // …callbacks
+});'>Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><span class="tok-p">({</span>
+  <span class="tok-f">userId</span><span class="tok-p">:</span> <span class="tok-s">"user_123"</span><span class="tok-p">,</span>
+  <span class="tok-f">theme</span><span class="tok-p">:</span> <span class="tok-p">{</span>
+    <span class="tok-f">adoptHostTokens</span><span class="tok-p">:</span> <span class="tok-k">true</span><span class="tok-p">,</span>   <span class="tok-c">// inherit your shadcn/ui CSS vars — colours + radius, both modes</span>
+    <span class="tok-f">accent</span><span class="tok-p">:</span> <span class="tok-s">"222 47% 11%"</span><span class="tok-p">,</span>   <span class="tok-c">// …or just a brand accent (primary CTA + send button)</span>
+  <span class="tok-p">},</span>
+  <span class="tok-c">// …callbacks</span>
+<span class="tok-p">});</span></pre>
+    </div>
+    <p>Precedence: explicit tokens (<code>accent</code>, <code>primary</code>, <code>background</code>,
+      <code>radius</code>, …) <strong>&gt;</strong> <code>adoptHostTokens</code> <strong>&gt;</strong> the
+      built-in neutral default. Button and offer copy are overridable too: <code>justCancelLabel</code>,
+      <code>acceptLabel</code>, <code>declineLabel</code>, <code>offerEyebrow</code>.</p>
+
+    <h2 id="guarantees">Design guarantees</h2>
+    <p>The SDK enforces these so a cancel flow can never trap or mislead a user:</p>
+    <ul>
+      <li><strong>The “Just cancel” escape hatch is always rendered.</strong> Someone who chooses to answer is telling the truth; someone cornered types anything to escape.</li>
+      <li><strong>The conversation is bounded.</strong> The engine stops at 5 questions (usually fewer); the modal closes on the server's <code>done</code> signal.</li>
+      <li><strong>The model never authorizes anything.</strong> <code>intervention_id</code> is chosen by deterministic server-side policy; the SDK just relays it.</li>
+      <li><strong>Transport failures never trap the user.</strong> On error the modal degrades to letting them cancel — it does not loop.</li>
+    </ul>
+
+    <h2 id="api">API reference</h2>
+    <p>Most integrations never call the engine directly — the SDK drives the session endpoints for you.
+      Use the HTTP API when you're integrating from a non-JS surface, building a custom flow, or reading
+      insights from your backend. Base URL: <code>https://offboard.fly.dev</code> (or your self-hosted engine).
+      All requests and responses are JSON.</p>
+    <div class="explore">
+      <a href="/api-explorer" target="_blank">Interactive explorer <span class="mono">/api-explorer</span></a>
+      <a href="/redoc" target="_blank">ReDoc <span class="mono">/redoc</span></a>
+      <a href="/openapi.json" target="_blank">OpenAPI spec <span class="mono">/openapi.json</span></a>
+    </div>
+
+    <div class="grp">Session flow · auth: <code>Bearer pk_…</code></div>
+    <table class="fields">
+      <tbody>
+        <tr><td><span class="m post">POST</span><span class="ep">/sessions</span></td><td>Open an interview for a user. Body: <code>user_id</code>, optional <code>context</code>, and <code>identity_token</code> when your key is secured. Returns <code>{ session_id, message }</code>.</td></tr>
+        <tr><td><span class="m post">POST</span><span class="ep">/sessions/{id}/turn</span></td><td>Send the user's reply. Body: <code>user_message</code>. Returns <code>{ message, done }</code>, or <code>{ done: true, outcome }</code> when the interview concludes.</td></tr>
+        <tr><td><span class="m post">POST</span><span class="ep">/sessions/{id}/resolution</span></td><td>Record whether the user took the offer. Body: <code>accepted</code> (bool). This is what powers save-rate and retained-MRR.</td></tr>
+        <tr><td><span class="m post">POST</span><span class="ep">/outcomes</span></td><td>Report a durable retention check later (was the saved user still subscribed?). Body: <code>user_id</code>, <code>active</code>, <code>observed_at</code>. Feeds the honest “did the save stick?” metric.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="grp">Insights · auth: <code>Bearer &lt;signing_secret&gt;</code> (or admin key)</div>
+    <table class="fields">
+      <tbody>
+        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/analytics</span></td><td>Rolled-up churn intelligence: reasons, save rate, retained/at-risk MRR, and a daily timeseries. Query: <code>days</code> (default 30).</td></tr>
+        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/causal</span></td><td>Holdout lift — treatment vs. control retention, isolating the saves the flow actually caused.</td></tr>
+        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/sessions</span></td><td>Recent interviews as summary rows. Query: <code>limit</code> (≤200), <code>days</code>.</td></tr>
+        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/sessions/{sid}</span></td><td>Full decision inspection for one session: transcript plus the authorization audit trail.</td></tr>
+        <tr><td><span class="m get">GET</span><span class="ep">/insights/{id}/activity</span></td><td>Operational event log — rate limits, rejected identity tokens, model errors, expired sessions.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="grp">Provisioning &amp; health</div>
+    <table class="fields">
+      <tbody>
+        <tr><td><span class="m post">POST</span><span class="ep">/onboard</span></td><td>Self-serve tenant creation. Auth: <code>Bearer &lt;signup_code&gt;</code>. Create-only — it can't read or delete other tenants.</td></tr>
+        <tr><td><span class="m other">CRUD</span><span class="ep">/configs</span></td><td>Operator surface (POST create · GET list · PATCH · DELETE), gated by the master admin key.</td></tr>
+        <tr><td><span class="m get">GET</span><span class="ep">/health</span></td><td>Liveness probe. No auth.</td></tr>
+      </tbody>
+    </table>
+    <div class="note">Auth model: the browser uses a public <code>pk_…</code> key (not a secret — paid offers are gated by
+      signed identity tokens instead). Insights and provisioning use secrets that never touch the browser. See
+      <a class="link" href="#identity">Verify identity</a>.</div>
+
+    <h2 id="errors">Common errors</h2>
+    <p>Every endpoint returns <code>{ "detail": "…" }</code> with a matching HTTP status. The ones you'll
+      actually hit, and what to do about each:</p>
+    <div class="note warn"><strong>Paid offers fall back to nothing without a valid token.</strong> When your
+      key has a signing secret, a session that omits <code>identityToken</code> — or sends one older than 10
+      minutes — is rejected with <code>401</code> rather than priced off the (forgeable) request body. Sign the
+      token on your backend at click-time; see <a class="link" href="#identity">Verify identity</a>.</div>
+    <table class="fields">
+      <thead><tr><th>Status</th><th>Cause</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>401</code> missing bearer token</td><td>No <code>Authorization: Bearer pk_…</code> header.</td><td>Call <code>Offboard.init()</code> with your public key; direct HTTP callers must send it on <em>every</em> request — <code>turn</code> and <code>resolution</code> included.</td></tr>
+        <tr><td><code>401</code> invalid public key</td><td>Key is mistyped, or the tenant was deleted.</td><td>Copy the <code>pk_…</code> from onboarding.</td></tr>
+        <tr><td><code>401</code> requires a signed identity_token</td><td>Key has a signing secret but no token was sent.</td><td>Mint one on your backend and pass it as <code>identityToken</code>.</td></tr>
+        <tr><td><code>401</code> token expired / bad signature</td><td>Token older than 10 min, or signed with the wrong secret.</td><td>Sign at click-time with the current <code>signing_secret</code> — never cache it.</td></tr>
+        <tr><td><code>403</code> origin not allowed</td><td>The page's origin isn't in the tenant's allowlist.</td><td>Add it to <code>allowed_origins</code> (onboarding, or <code>PATCH /configs/{id}</code>).</td></tr>
+        <tr><td><code>404</code> session not found</td><td>The <code>session_id</code> is unknown or expired mid-flow.</td><td>Start a fresh session; don't reuse an id across page loads.</td></tr>
+        <tr><td><code>429</code> rate limit exceeded</td><td>Too many sessions or turns from one key or IP.</td><td>Back off for the <code>Retry-After</code> seconds. The limits clear a real cancel flow, so this usually means a loop or a script.</td></tr>
+        <tr><td><code>502</code> engine error</td><td>An upstream model call failed or timed out.</td><td>Transient. The modal auto-degrades to letting the user cancel — no one is trapped — so just retry the session.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="develop">Development</h2>
+    <p>Building the SDK from source (the wire types in <code>src/types.ts</code> mirror the engine's
+      <code>taxonomy.py</code> — keep them in lockstep; that shared <code>Outcome</code> shape is the contract):</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">terminal — sdk/</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='npm install
+npm run build       # tsc -> dist/
+npm run typecheck   # strict, no emit'><span class="tok-f">npm</span> install
+<span class="tok-f">npm</span> run build       <span class="tok-c"># tsc -&gt; dist/</span>
+<span class="tok-f">npm</span> run typecheck   <span class="tok-c"># strict, no emit</span></pre>
+    </div>
+    <p>The package ships ESM with two entry points: <code>offboard</code> (framework-free core) and
+      <code>offboard/react</code> (the hook; <code>react</code> is an optional peer dependency).</p>
+
+    <h2 id="selfhost">Self-hosting the engine</h2>
+    <p>The engine is a Python (FastAPI) service — you don't need it to <em>use</em> Offboard (it's hosted),
+      only to run your own. Point the SDK at it with <code>apiBaseUrl</code>:</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="fname">init.js</span>
+        <button class="copy" title="Copy" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+<pre data-raw='Offboard.init({
+  publicKey: "pk_live_…",
+  apiBaseUrl: "https://offboard.your-domain.com",
+});'>Offboard<span class="tok-p">.</span><span class="tok-f">init</span><span class="tok-p">({</span>
+  <span class="tok-f">publicKey</span><span class="tok-p">:</span> <span class="tok-s">"pk_live_…"</span><span class="tok-p">,</span>
+  <span class="tok-f">apiBaseUrl</span><span class="tok-p">:</span> <span class="tok-s">"https://offboard.your-domain.com"</span><span class="tok-p">,</span>
+<span class="tok-p">});</span></pre>
+    </div>
+    <p>Key environment variables when running the engine:</p>
+    <table class="fields">
+      <tbody>
+        <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Required — the model behind the interview.</td></tr>
+        <tr><td><code>OFFBOARD_CONFIG_DIR</code></td><td>Where tenant config files live.</td></tr>
+        <tr><td><code>OFFBOARD_RUNS_DIR</code></td><td>Append-only JSONL data (transcripts, resolutions, outcomes). Put it on a mounted volume so it survives redeploys.</td></tr>
+        <tr><td><code>OFFBOARD_ADMIN_KEY</code> / <code>OFFBOARD_SIGNUP_KEY</code></td><td>Enable the admin and self-serve surfaces (each 404s when unset).</td></tr>
+        <tr><td><code>OFFBOARD_REDIS_URL</code></td><td>Shared session store + rate limiter for multi-instance / zero-downtime deploys.</td></tr>
+        <tr><td><code>OFFBOARD_TRUSTED_PROXY_HOPS</code></td><td>Proxy hops in front of the app, so per-IP rate limits read the real client IP.</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="hr" />
+    <p style="margin-top:24px">Ready? <a class="link" href="/onboard">Set up your tenant</a> to get keys, then
+      drop the SDK behind your cancel button. Sessions and retained MRR show up in your
+      <a class="link" href="/dashboard">dashboard</a>.</p>
+  </main>
+</div>
+
+<footer>
+  <div class="foot">
+    <span class="brand">
+      <svg class="mark" viewBox="0 0 120 120" aria-hidden="true" style="width:19px;height:19px"><path d="M0 14 A14 14 0 0 1 14 0 L106 0 A14 14 0 0 1 120 14 L120 44 L76 44 A16 16 0 0 0 76 76 L120 76 L120 106 A14 14 0 0 1 106 120 L14 120 A14 14 0 0 1 0 106 Z" fill="var(--brand)"/></svg>
+      Offboard
+    </span>
+    <div class="spacer"></div>
+    <nav class="links">
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/onboard">Set up</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/health">Status</a>
+    </nav>
+    <span class="cpy">© Offboard</span>
+  </div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+  const toast = (msg) => {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 1400);
+  };
+  // Copy buttons: explicit data-copy, else the sibling <pre>'s data-raw.
+  document.querySelectorAll(".copy").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const text = btn.dataset.copy
+        || btn.closest(".window")?.querySelector("pre")?.dataset.raw
+        || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.classList.add("done"); toast("Copied");
+        setTimeout(() => btn.classList.remove("done"), 1100);
+      } catch { toast("Copy failed"); }
+    });
+  });
+  // Scroll-spy: highlight the sidebar link for the section in view.
+  const links = [...document.querySelectorAll(".side a")];
+  const byId = Object.fromEntries(links.map((a) => [a.getAttribute("href").slice(1), a]));
+  const spy = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        links.forEach((a) => a.classList.remove("active"));
+        byId[e.target.id]?.classList.add("active");
+      }
+    }
+  }, { rootMargin: "-70px 0px -70% 0px" });
+  document.querySelectorAll(".content h2[id]").forEach((h) => spy.observe(h));
+</script>
+</body>
+</html>

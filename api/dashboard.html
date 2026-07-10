@@ -14,6 +14,7 @@
     --accent: #d97757; --accent-fg: #ffffff; --accent-soft: #fbeee8;
     --ok: #067647; --ok-soft: #e7f5ee; --warn: #b54708; --warn-soft: #fdf0e6;
     --err: #b42318; --err-soft: #fdecea;
+    --danger: #d9584f; --danger-soft: #fbebe9;
     --track: #ededf0; --shadow: 0 1px 2px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
     --radius: 12px; --radius-sm: 8px;
   }
@@ -39,9 +40,6 @@
   .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; }
   .num { font-variant-numeric: tabular-nums; }
 
-  /* Sensitive figures blur when masked. */
-  body.masked .sensitive { filter: blur(7px); user-select: none; transition: filter .12s; }
-  .sensitive { transition: filter .12s; }
 
   /* ---- Top bar ---- */
   .topbar {
@@ -65,6 +63,40 @@
   .iconbtn:hover { background: var(--surface-2); color: var(--fg); }
   .iconbtn svg { width: 15px; height: 15px; display: block; }
   .iconbtn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .iconbtn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 32%, var(--border-2)); }
+  .iconbtn.danger:hover { color: var(--danger); background: var(--danger-soft); border-color: var(--danger); }
+
+  /* Per-section refresh (in each section header). */
+  .sec-refresh {
+    margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border: 1px solid var(--border-2); border-radius: 7px;
+    background: var(--surface); color: var(--muted); cursor: pointer; transition: color .12s, background .12s, border-color .12s;
+  }
+  .sec-refresh:hover { color: var(--fg); background: var(--surface-2); }
+  .sec-refresh svg { width: 14px; height: 14px; display: block; }
+  .sec-refresh.spin svg { animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- Activity chart ---- */
+  .chart { width: 100%; position: relative; }
+  .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart .grid { stroke: var(--border); stroke-width: 1; }
+  .chart .axis { fill: var(--muted); font-size: 10px; }
+  .chart .area { fill: url(#chartFill); }
+  .chart .line { fill: none; stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .dot { fill: var(--surface); stroke: var(--brand); stroke-width: 2; }
+  .chart .hit { fill: transparent; cursor: pointer; }
+  .chart .guide { stroke: var(--border-2); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; }
+  .chart-legend { display: flex; gap: 16px; align-items: center; margin-top: 12px; font-size: 12px; color: var(--fg-2); }
+  .chart-legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-legend .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--brand); }
+  .chart-tip {
+    position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -100%);
+    background: var(--fg); color: var(--bg); font-size: 11.5px; line-height: 1.45; white-space: nowrap;
+    padding: 7px 9px; border-radius: 8px; box-shadow: var(--shadow); z-index: 5; transition: opacity .1s;
+  }
+  .chart-tip b { font-weight: 640; }
+  .chart-tip .t-d { color: color-mix(in srgb, var(--bg) 60%, var(--fg)); font-size: 10.5px; margin-bottom: 3px; }
 
   /* ---- Layout ---- */
   .wrap { max-width: 1080px; margin: 0 auto; padding: 26px 22px 90px; }
@@ -165,11 +197,7 @@
   </div>
   <div class="spacer"></div>
   <div id="who" class="who hidden"></div>
-  <button id="maskBtn" class="iconbtn hidden" title="Hide revenue figures" aria-label="Toggle sensitive figures"></button>
-  <button id="refreshBtn" class="iconbtn hidden" title="Refresh" aria-label="Refresh">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-  </button>
-  <button id="signout" class="iconbtn hidden" title="Disconnect">Disconnect</button>
+  <button id="signout" class="iconbtn danger hidden" title="Disconnect">Disconnect</button>
 </div>
 
 <!-- Gate -->
@@ -210,17 +238,26 @@
   <div class="kpis" id="kpis"></div>
 
   <section>
-    <div class="sec-h"><h2>Why users are leaving</h2><span class="hint">diagnosed reason · share of sessions · save rate</span></div>
+    <div class="sec-h"><h2>Activity</h2><span class="hint">sessions &amp; retained MRR over time</span>
+      <button class="sec-refresh" data-refresh="analytics" title="Refresh" aria-label="Refresh activity"></button></div>
+    <div class="card pad"><div id="chart" class="chart"></div></div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Why users are leaving</h2><span class="hint">diagnosed reason · share of sessions · save rate</span>
+      <button class="sec-refresh" data-refresh="analytics" title="Refresh" aria-label="Refresh reasons"></button></div>
     <div class="card pad"><div id="reasons"></div></div>
   </section>
 
   <section>
-    <div class="sec-h"><h2>Offer performance</h2><span class="hint">served vs. accepted, by intervention type</span></div>
+    <div class="sec-h"><h2>Offer performance</h2><span class="hint">served vs. accepted, by intervention type</span>
+      <button class="sec-refresh" data-refresh="analytics" title="Refresh" aria-label="Refresh offers"></button></div>
     <div class="card"><div class="scroll" id="offers"></div></div>
   </section>
 
   <section>
-    <div class="sec-h"><h2>Recent sessions</h2><span class="hint">latest 50 outcomes</span></div>
+    <div class="sec-h"><h2>Recent sessions</h2><span class="hint">latest 50 outcomes</span>
+      <button class="sec-refresh" data-refresh="sessions" title="Refresh" aria-label="Refresh sessions"></button></div>
     <div class="card"><div class="scroll" id="events"></div></div>
   </section>
 </div>
@@ -241,6 +278,7 @@
     eyeOff: svg('<path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.9 5.2A10.5 10.5 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.3 4.1"/><path d="M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a10.5 10.5 0 0 0 3-.4"/>'),
     copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
     check: svg('<path d="M20 6 9 17l-5-5"/>'),
+    refresh: svg('<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>'),
   };
   const pct = (x) => (x == null ? "—" : (x * 100).toFixed(0) + "%");
   const money = (x) => "$" + (Number(x) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -298,16 +336,6 @@
     }
   };
 
-  // ---- Mask sensitive figures ----
-  let masked = false;
-  function paintMask() {
-    document.body.classList.toggle("masked", masked);
-    $("maskBtn").classList.toggle("on", masked);
-    $("maskBtn").innerHTML = masked ? ICON.eyeOff : ICON.eye;
-    $("maskBtn").title = masked ? "Show revenue figures" : "Hide revenue figures";
-  }
-  $("maskBtn").onclick = () => { masked = !masked; paintMask(); };
-
   // ---- Connect ----
   async function connect() {
     customerId = $("customer_id").value.trim();
@@ -320,10 +348,9 @@
       $("gate").classList.add("hidden");
       $("board").classList.remove("hidden");
       const who = $("who"); who.innerHTML = "";
-      who.append(el("span", { className: "dot" }), copyable(customerId, "mono"));
+      who.append(el("span", { className: "dot" }), el("span", { className: "mono", textContent: customerId }));
       who.classList.remove("hidden");
-      ["maskBtn", "refreshBtn", "signout"].forEach((id) => $(id).classList.remove("hidden"));
-      paintMask();
+      $("signout").classList.remove("hidden");
     } catch (e) {
       $("gateStatus").textContent = e.status === 401 ? "customer_id or signing_secret rejected."
         : e.status === 404 ? "Dashboard not available on this deployment." : `Error: ${e.detail || e}`;
@@ -332,31 +359,49 @@
       $("connect").disabled = false; $("connect").textContent = "Connect";
     }
   }
-  $("refreshBtn").onclick = async () => { try { await load(); toast("Refreshed"); } catch { toast("Refresh failed"); } };
   $("signout").onclick = () => location.reload();
   $("connect").onclick = connect;
   ["customer_id", "secret"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") connect(); }));
 
-  // ---- Render ----
-  function sens(text) { return el("span", { className: "sensitive", textContent: text }); }
+  // ---- Per-section refresh: each area refetches only its own data ----
+  async function refreshArea(kind, btn) {
+    const enc = encodeURIComponent(customerId);
+    btn?.classList.add("spin");
+    try {
+      if (kind === "sessions") renderSessions((await api(`/insights/${enc}/sessions?limit=50`)).sessions);
+      else renderAnalytics(await api(`/insights/${enc}/analytics`));
+      toast("Refreshed");
+    } catch { toast("Refresh failed"); }
+    finally { setTimeout(() => btn?.classList.remove("spin"), 350); }
+  }
+  document.querySelectorAll(".sec-refresh").forEach((btn) => {
+    btn.innerHTML = ICON.refresh;
+    btn.onclick = () => refreshArea(btn.dataset.refresh, btn);
+  });
 
-  function render(a, events) {
+  // ---- Render ----
+  function render(a, events) { renderAnalytics(a); renderSessions(events); }
+
+  function renderAnalytics(a) {
     // KPI cards.
     const accepted = a.offers_accepted, made = a.offers_made;
     const kpis = [
       { k: "Sessions", v: String(a.total_sessions), foot: `${made} received an offer` },
       { k: "Save rate", v: pct(a.save_rate), foot: `${accepted} of ${made} accepted` },
       { k: "Saves", v: String(accepted), foot: "offers accepted" },
-      { k: "Retained MRR", v: null, sensitive: money(a.retained_mrr), foot: "from accepted saves" },
+      { k: "Retained MRR", v: money(a.retained_mrr), foot: "from accepted saves" },
     ];
     const box = $("kpis"); box.innerHTML = "";
     for (const c of kpis) {
       box.append(el("div", { className: "card kpi" }, [
         el("div", { className: "k", textContent: c.k }),
-        c.sensitive ? el("div", { className: "v" }, [sens(c.sensitive)]) : el("div", { className: "v", textContent: c.v }),
+        el("div", { className: "v", textContent: c.v }),
         el("div", { className: "foot", textContent: c.foot }),
       ]));
     }
+
+    // Activity chart.
+    renderChart(a.timeseries || []);
 
     // Reason meters.
     const reasons = Object.entries(a.reason_breakdown || {});
@@ -374,7 +419,7 @@
             el("span", {}, [el("b", { textContent: n }), document.createTextNode(" sessions")]),
             el("span", {}, [el("b", { textContent: pct(share) }), document.createTextNode(" share")]),
             el("span", {}, [el("b", { textContent: pct(saveRate) }), document.createTextNode(" saved")]),
-            el("span", { className: "sensitive" }, [el("b", { textContent: money(cell.retained_mrr || 0) })]),
+            el("span", {}, [el("b", { textContent: money(cell.retained_mrr || 0) })]),
           ]),
           el("div", { className: "track" }, [el("span", { style: `width:${Math.max(share * 100, 2)}%` })]),
         ]));
@@ -389,10 +434,11 @@
         String(c.offered),
         String(c.accepted),
         pct(c.offered ? c.accepted / c.offered : null),
-        sens(money(c.retained_mrr || 0)),
+        money(c.retained_mrr || 0),
       ]) : null, "No offers served yet.");
+  }
 
-    // Recent sessions table.
+  function renderSessions(events) {
     renderTable($("events"), ["When", "Reason", "Mode", "Offer", "Result", "MRR"], [5],
       events.length ? events.map((ev) => [
         el("span", { className: "mono", textContent: (ev.logged_at || "").replace("T", " ").slice(0, 16) }),
@@ -402,8 +448,69 @@
         ev.offered
           ? el("span", { className: `pill ${ev.accepted ? "ok" : "no"}`, textContent: ev.accepted ? "saved" : "declined" })
           : el("span", { className: "pill no", textContent: "no offer" }),
-        ev.mrr != null ? sens(money(ev.mrr)) : "—",
+        ev.mrr != null ? money(ev.mrr) : "—",
       ]) : null, "No sessions yet.");
+  }
+
+  // ---- Activity chart: inline SVG area + line over the daily timeseries, with a hover tooltip.
+  function renderChart(ts) {
+    const host = $("chart"); host.innerHTML = "";
+    if (!ts.length) { host.append(el("div", { className: "empty", textContent: "No activity yet." })); return; }
+    const W = 720, H = 200, padL = 8, padR = 8, padT = 16, padB = 24;
+    const plotW = W - padL - padR, plotH = H - padT - padB, base = padT + plotH, n = ts.length;
+    const maxRaw = Math.max(1, ...ts.map((d) => d.sessions));
+    const niceMax = Math.max(4, Math.ceil(maxRaw / 4) * 4);
+    const X = (i) => padL + (n === 1 ? plotW / 2 : (plotW * i) / (n - 1));
+    const Y = (v) => padT + plotH * (1 - v / niceMax);
+    const pts = ts.map((d, i) => `${X(i).toFixed(1)},${Y(d.sessions).toFixed(1)}`);
+    const area = `M ${X(0).toFixed(1)},${base} L ${pts.join(" L ")} L ${X(n - 1).toFixed(1)},${base} Z`;
+    const line = `M ${pts.join(" L ")}`;
+    let grid = "";
+    for (const gv of [0, niceMax / 2, niceMax]) {
+      const gy = Y(gv).toFixed(1);
+      grid += `<line class="grid" x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}"/>`;
+      grid += `<text class="axis" x="0" y="${(Y(gv) - 3).toFixed(1)}">${gv}</text>`;
+    }
+    let xlab = "";
+    const step = Math.max(1, Math.ceil(n / 6));
+    for (let i = 0; i < n; i += step) xlab += `<text class="axis" x="${X(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${ts[i].date.slice(5)}</text>`;
+    let dots = "", hits = "";
+    const hw = n > 1 ? plotW / (n - 1) : plotW;
+    ts.forEach((d, i) => {
+      dots += `<circle class="dot" data-i="${i}" cx="${X(i).toFixed(1)}" cy="${Y(d.sessions).toFixed(1)}" r="2.6"/>`;
+      hits += `<rect class="hit" data-i="${i}" x="${(X(i) - hw / 2).toFixed(1)}" y="${padT}" width="${hw.toFixed(1)}" height="${plotH}"/>`;
+    });
+    host.innerHTML =
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sessions per day">
+        <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="var(--brand)" stop-opacity="0"/>
+        </linearGradient></defs>
+        ${grid}<path class="area" d="${area}"/><path class="line" d="${line}"/>
+        <line class="guide" x1="${X(0).toFixed(1)}" y1="${padT}" x2="${X(0).toFixed(1)}" y2="${base}"/>
+        ${dots}${xlab}${hits}
+      </svg>`;
+    const legend = el("div", { className: "chart-legend" });
+    legend.append(el("span", { className: "lg" }, [el("span", { className: "sw" }), document.createTextNode("Sessions per day")]));
+    host.append(legend);
+    const guide = host.querySelector(".guide");
+    const tip = el("div", { className: "chart-tip" }); host.append(tip);
+    const show = (i) => {
+      const d = ts[i], dot = host.querySelector(`.dot[data-i="${i}"]`);
+      guide.setAttribute("x1", dot.getAttribute("cx")); guide.setAttribute("x2", dot.getAttribute("cx")); guide.style.opacity = 1;
+      const dr = dot.getBoundingClientRect(), cr = host.getBoundingClientRect();
+      tip.innerHTML = `<div class="t-d">${d.date}</div><b>${d.sessions}</b> sessions · <b>${d.accepted}</b> saved · <b>${money(d.retained_mrr)}</b>`;
+      tip.style.left = (dr.left - cr.left + dr.width / 2) + "px";
+      tip.style.top = (dr.top - cr.top - 6) + "px";
+      tip.style.opacity = 1;
+    };
+    const hide = () => { tip.style.opacity = 0; guide.style.opacity = 0; };
+    host.querySelectorAll(".hit").forEach((r) => {
+      const i = +r.dataset.i;
+      r.addEventListener("mouseenter", () => show(i));
+      r.addEventListener("mousemove", () => show(i));
+      r.addEventListener("mouseleave", hide);
+    });
   }
 
   // Build a table. `rightCols` = column indexes that are right-aligned. `rows` = array of cell arrays

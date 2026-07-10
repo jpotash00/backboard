@@ -173,6 +173,26 @@
     background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 550; padding: 9px 16px; border-radius: 999px;
     pointer-events: none; transition: opacity .16s, transform .16s; z-index: 60; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---- Reassurance + integrations strip + numbered steps (cal.com-style) ---- */
+  .reassure { margin-top: 16px; font-size: 13px; color: var(--muted); }
+  .reassure b { color: var(--fg-2); font-weight: 600; }
+  .trusted { padding: 8px 24px 10px; text-align: center; }
+  .trusted-h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
+  .logos { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px 34px; }
+  .logos span { font-size: 15.5px; font-weight: 600; color: var(--fg-2); letter-spacing: -.01em; opacity: .82; }
+  @media (max-width: 640px) { .logos span { font-size: 13.5px; } }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+  .step { padding: 26px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .step .n {
+    display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+    border-radius: 11px; background: var(--bg-2); border: 1px solid var(--border-2);
+    color: var(--brand); font-weight: 680; font-size: 14px; margin-bottom: 16px; font-variant-numeric: tabular-nums;
+  }
+  .step h3 { font-size: 16px; margin: 0 0 7px; letter-spacing: -.015em; font-weight: 600; }
+  .step p { margin: 0; color: var(--fg-2); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -185,6 +205,7 @@
   <nav class="nav-links">
     <a href="#how" class="nav-link">How it works</a>
     <a href="#why" class="nav-link">Why it wins</a>
+    <a href="/docs" class="nav-link">Docs</a>
     <a href="/onboard" class="nav-link">Set up</a>
   </nav>
   <a href="/dashboard" class="btn btn-solid">Dashboard</a>
@@ -201,6 +222,7 @@
     <a href="/onboard" class="btn btn-solid btn-lg">Get started</a>
     <a href="/dashboard" class="btn btn-ghost btn-lg">Open the dashboard</a>
   </div>
+  <p class="reassure">No account needed · <b>keys in seconds</b> · free to start</p>
   <div class="install">
     <span class="cmd mono"><span class="sig">$</span> npm install <span class="pkg">offboard</span></span>
     <button class="copy" id="copyInstall" title="Copy" aria-label="Copy install command">
@@ -227,6 +249,13 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
   </div>
 </header>
 
+<div class="trusted">
+  <p class="trusted-h">Drops into any stack</p>
+  <div class="logos">
+    <span>React</span><span>Next.js</span><span>Vue</span><span>Svelte</span><span>Angular</span><span>Any HTTP backend</span>
+  </div>
+</div>
+
 <main class="wrap">
   <section id="how">
     <div class="sec-head">
@@ -234,19 +263,19 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
       <h2>From cancel click to kept revenue.</h2>
       <p>Drop the SDK in, let the engine run the save, and read exactly what it learned — no prompts, no pipeline to babysit.</p>
     </div>
-    <div class="feature-grid">
-      <div class="feature">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
-        <h3>One import</h3>
-        <p>A single call behind your cancel button renders a short, theme-matched conversation — not a dead-end form.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="n">01</span>
+        <h3>Install &amp; init</h3>
+        <p>One import behind your cancel button renders a short, theme-matched conversation — not a dead-end form.</p>
       </div>
-      <div class="feature">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <div class="step">
+        <span class="n">02</span>
         <h3>Diagnose &amp; save</h3>
         <p>The engine finds the true reason and authorizes the right offer — a pause, a discount, a plan change — only when it's worth it.</p>
       </div>
-      <div class="feature">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      <div class="step">
+        <span class="n">03</span>
         <h3>Measure it</h3>
         <p>Every session flows to your dashboard: why users churn, which offers land, and the MRR you retained — read-only, per tenant.</p>
       </div>
@@ -296,6 +325,7 @@ Offboard<span class="tok-p">.</span><span class="tok-f">showCancelFlow</span><sp
     <div class="spacer"></div>
     <nav class="links">
       <a href="/dashboard">Dashboard</a>
+      <a href="/docs">Docs</a>
       <a href="/onboard">Set up</a>
       <a href="/health">Status</a>
     </nav>

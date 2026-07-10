@@ -167,6 +167,10 @@ def create_app(
         title="Offboard Engine API",
         version="0.1.0",
         root_path=os.getenv("OFFBOARD_ROOT_PATH", ""),
+        # /docs is our human-facing install/integration guide (docs.html), so move FastAPI's
+        # built-in interactive API explorer to /api-explorer. The OpenAPI spec (/openapi.json)
+        # and ReDoc (/redoc) stay at their defaults.
+        docs_url="/api-explorer",
     )
     app.add_middleware(
         CORSMiddleware,
@@ -332,6 +336,12 @@ def create_app(
         # available -- it only links to the other surfaces (dashboard/onboard), which enforce
         # their own gates, so serving it unconditionally advertises nothing sensitive.
         return FileResponse(Path(__file__).parent / "landing.html")
+
+    @app.get("/docs", include_in_schema=False)
+    def docs_page() -> FileResponse:
+        # Public install/integration guide. Static, non-secret, always available -- it only documents
+        # the SDK and links to the gated surfaces, so serving it unconditionally advertises nothing.
+        return FileResponse(Path(__file__).parent / "docs.html")
 
     @app.get("/favicon.svg", include_in_schema=False)
     def favicon() -> FileResponse:
