@@ -4,12 +4,13 @@ from eval.scoring import Result, baseline_reason, crux_split_ok, score
 
 
 def r(pid, hidden, cover, diagnosed, conf=0.9, turns=1, iv="x", exp="x",
-      misleading=False, confirmer=False):
+      misleading=False, confirmer=False, snap=None):
     return Result(
         persona_id=pid, hidden_reason=hidden, cover_story=cover,
         diagnosed_reason=diagnosed, confidence=conf, turns_used=turns,
         intervention_type=iv, expected_intervention_type=exp,
         misleading_tell=misleading, false_confirmer=confirmer,
+        snapshot_only_reason=snap,
     )
 
 
@@ -101,6 +102,46 @@ def test_false_confirmer_accuracy_scored_separately():
     s = score(results)
     assert s.n_false_confirmer == 2
     assert s.false_confirmer_accuracy == 0.5  # 1 of 2; the led one was lost
+
+
+def test_snapshot_only_baseline_scored_when_present():
+    results = [
+        # trap: interviewer right, dashboard-truster ALSO right (label leaked from snapshot)
+        r(1, "never_activated", "too_expensive", "never_activated", snap="never_activated"),
+        # trap: interviewer right, dashboard-truster WRONG (only the conversation got it)
+        r(5, "missing_capability", "too_expensive", "missing_capability", snap="price_value_mismatch"),
+    ]
+    s = score(results)
+    assert s.n_snapshot_only == 2
+    assert s.snapshot_only_diagnostic_accuracy == 0.5   # 1 of 2 snapshot-only correct
+    assert s.snapshot_only_cover_story_penetration == 0.5
+    # the interview beat the dashboard-truster on penetration -> the conversation added lift
+    assert s.cover_story_penetration == 1.0
+    assert s.cover_story_penetration > s.snapshot_only_cover_story_penetration
+
+
+def test_snapshot_only_absent_reads_as_none_not_zero():
+    # No snapshot_only_reason set -> the adversary wasn't run; must not deflate to 0%.
+    results = [r(1, "never_activated", "too_expensive", "never_activated")]
+    s = score(results)
+    assert s.n_snapshot_only == 0
+    assert s.snapshot_only_diagnostic_accuracy is None
+    assert s.snapshot_only_cover_story_penetration is None
+    assert s.snapshot_only_misleading_tell_accuracy is None
+
+
+def test_snapshot_only_misleading_slice():
+    results = [
+        # misleading tell: dashboard-truster falls for the tell (wrong), interviewer recovers
+        r(11, "product_quality", "not_using_it", "product_quality", misleading=True,
+          snap="value_ended"),
+        r(15, "switched_competitor", "not_using_it", "switched_competitor", misleading=True,
+          snap="value_ended"),
+    ]
+    s = score(results)
+    # on the misleading-tell slice the dashboard-truster craters -- the whole point
+    assert s.snapshot_only_misleading_tell_accuracy == 0.0
+    assert s.misleading_tell_accuracy == 1.0
 
 
 def test_crux_split():

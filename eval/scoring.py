@@ -39,10 +39,22 @@ class Result:
     # True for acquiescent personas that confirm any label offered (see Persona.false_confirmer).
     # Accuracy here is a proxy for non-leading questioning discipline: lead them and you lose.
     false_confirmer: bool = False
+    # The "believe-the-dashboard" adversary's diagnosis: what a strong classifier gets from
+    # the snapshot + opener ALONE, with no interview (see eval.snapshot_only). None when the
+    # adversary wasn't run. The interviewer's edge OVER this is what the conversation adds;
+    # if they match, the label was recoverable from the shown features (feature leakage).
+    snapshot_only_reason: Optional[str] = None
 
     @property
     def reason_correct(self) -> bool:
         return self.diagnosed_reason == self.hidden_reason
+
+    @property
+    def snapshot_only_correct(self) -> Optional[bool]:
+        """Did the dashboard-only adversary get it right? None when it wasn't run."""
+        if self.snapshot_only_reason is None:
+            return None
+        return self.snapshot_only_reason == self.hidden_reason
 
     @property
     def intervention_correct(self) -> bool:
@@ -78,10 +90,17 @@ class Scores:
     # Baseline for the delta.
     baseline_diagnostic_accuracy: float
     baseline_cover_story_penetration: float
+    # The second baseline: the believe-the-dashboard adversary (no interview). None when it
+    # wasn't run. Where these match the interviewer, the conversation added nothing -- the
+    # label was already sitting in the snapshot. The gap is the interview's real contribution.
+    snapshot_only_diagnostic_accuracy: Optional[float]
+    snapshot_only_cover_story_penetration: Optional[float]
+    snapshot_only_misleading_tell_accuracy: Optional[float]
     n: int
     n_traps: int
     n_misleading: int
     n_false_confirmer: int
+    n_snapshot_only: int
 
 
 def baseline_reason(cover_story: str) -> Reason:
@@ -99,6 +118,13 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
 
     conf_correct = [r.confidence for r in correct]
     conf_wrong = [r.confidence for r in wrong]
+
+    # Second baseline: the believe-the-dashboard adversary. Only score it over personas
+    # where it actually ran (snapshot_only_reason set), so a partial/absent run reads as
+    # None rather than silently deflating to zero.
+    snap = [r for r in results if r.snapshot_only_reason is not None]
+    snap_traps = [r for r in snap if r.is_cover_story_trap]
+    snap_mis = [r for r in snap if r.misleading_tell]
 
     return Scores(
         diagnostic_accuracy=_rate(len(correct), n),
@@ -127,10 +153,22 @@ def score(results: list[Result], confidence_floor: float = 0.6) -> Scores:
             sum(baseline_reason(r.cover_story) == r.hidden_reason for r in traps),
             len(traps),
         ),
+        snapshot_only_diagnostic_accuracy=(
+            _rate(sum(r.snapshot_only_correct for r in snap), len(snap)) if snap else None
+        ),
+        snapshot_only_cover_story_penetration=(
+            _rate(sum(r.snapshot_only_correct for r in snap_traps), len(snap_traps))
+            if snap_traps else None
+        ),
+        snapshot_only_misleading_tell_accuracy=(
+            _rate(sum(r.snapshot_only_correct for r in snap_mis), len(snap_mis))
+            if snap_mis else None
+        ),
         n=n,
         n_traps=len(traps),
         n_misleading=len(misleading),
         n_false_confirmer=len(confirmers),
+        n_snapshot_only=len(snap),
     )
 
 

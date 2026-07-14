@@ -26,6 +26,7 @@ from engine.interviewer import MAX_TURNS
 from .configs import ACME
 from .personas import Persona, build_personas
 from .scoring import Result, baseline_reason, crux_split_ok, score
+from .snapshot_only import snapshot_only_reason
 
 
 @dataclass
@@ -70,7 +71,8 @@ def run_persona(persona: Persona, client, interviewer_model=None,
     return t
 
 
-def to_result(persona: Persona, transcript: Transcript) -> Result:
+def to_result(persona: Persona, transcript: Transcript,
+              snapshot_only: Optional[str] = None) -> Result:
     o = transcript.outcome
     if o is None:
         raise ValueError(f"persona {persona.id}: interview ended without an outcome")
@@ -88,6 +90,7 @@ def to_result(persona: Persona, transcript: Transcript) -> Result:
         expected_intervention_type=persona.expected_intervention_type,
         misleading_tell=persona.misleading_tell,
         false_confirmer=persona.false_confirmer,
+        snapshot_only_reason=snapshot_only,
     )
 
 
@@ -139,18 +142,25 @@ def print_summary(results: list[Result]) -> None:
               f"{'yes' if r.false_confirmer else ' - ':>5} "
               f"{'✅' if r.reason_correct else '❌':>3}")
 
-    print(f"\n  {'metric':<34}{'interviewer':>14}{'dropdown':>12}")
-    print("  " + "-" * 58)
+    # Two baselines bracket the interview: `dropdown` believes the COVER story, `snapshot`
+    # believes the DASHBOARD. The interview only earns its keep by beating BOTH.
+    def _snap(v: Optional[float]) -> str:
+        return f"{v:>10.0%}" if v is not None else f"{'  n/a':>10}"
+
+    print(f"\n  {'metric':<34}{'interviewer':>13}{'dropdown':>10}{'snapshot':>11}")
+    print("  " + "-" * 68)
     print(f"  {'diagnostic accuracy':<34}"
-          f"{s.diagnostic_accuracy:>13.0%} {s.baseline_diagnostic_accuracy:>11.0%}")
+          f"{s.diagnostic_accuracy:>12.0%} {s.baseline_diagnostic_accuracy:>9.0%} "
+          f"{_snap(s.snapshot_only_diagnostic_accuracy)}")
     print(f"  {'cover-story penetration (traps)':<34}"
-          f"{s.cover_story_penetration:>13.0%} {s.baseline_cover_story_penetration:>11.0%}"
-          f"   <- the real metric")
+          f"{s.cover_story_penetration:>12.0%} {s.baseline_cover_story_penetration:>9.0%} "
+          f"{_snap(s.snapshot_only_cover_story_penetration)}   <- the real metric")
     print(f"  {'intervention correctness':<34}"
-          f"{s.intervention_correctness:>13.0%}{'':>12}")
+          f"{s.intervention_correctness:>12.0%}{'':>21}")
     if s.n_misleading:
         print(f"  {'misleading-tell accuracy':<34}"
-              f"{s.misleading_tell_accuracy:>13.0%}{'':>12}"
+              f"{s.misleading_tell_accuracy:>12.0%}{'':>10} "
+              f"{_snap(s.snapshot_only_misleading_tell_accuracy)}"
               f"   <- n={s.n_misleading}; anti-telegraphing")
     if s.n_false_confirmer:
         print(f"  {'false-confirmer accuracy':<34}"
@@ -163,6 +173,18 @@ def print_summary(results: list[Result]) -> None:
     print(f"                confident-and-wrong (conf >= {floor}): "
           f"{s.confident_and_wrong}  (want 0 -- these are the dangerous ones)")
     print(f"  mean turns used: {s.mean_turns:.1f} / {MAX_TURNS}")
+
+    # What the conversation adds over just reading the dashboard. If this gap is ~0, the
+    # interview is decorative and the label leaked from the shown features (see snapshot_only).
+    if s.snapshot_only_cover_story_penetration is not None:
+        gap = s.cover_story_penetration - s.snapshot_only_cover_story_penetration
+        print(f"\n  conversation lift over snapshot-only (on traps): {gap:+.0%}   "
+              f"(interview {s.cover_story_penetration:.0%} vs dashboard-truster "
+              f"{s.snapshot_only_cover_story_penetration:.0%})")
+        if s.snapshot_only_cover_story_penetration >= 0.90:
+            print("  ⚠ FEATURE LEAKAGE: a no-interview classifier already solves these from the "
+                  "snapshot.\n    Penetration here is NOT measuring the interview -- redact the "
+                  "discriminating\n    signals so they can only surface through questioning.")
 
     print("\n  " + "-" * 58)
     crux_str = {True: "✅ SPLIT", False: "❌ NOT SPLIT", None: "n/a"}[crux]
@@ -202,6 +224,8 @@ def log_run(results: list[Result], transcripts: list[Transcript], stamp: str) ->
                 "reason_correct": r.reason_correct,
                 "intervention_correct": r.intervention_correct,
                 "baseline_reason": baseline_reason(r.cover_story),
+                "snapshot_only_reason": r.snapshot_only_reason,
+                "snapshot_only_correct": r.snapshot_only_correct,
             }) + "\n")
     return path
 
@@ -230,6 +254,11 @@ def main() -> int:
         print(f"  source=ravenstack  |  {len(personas)} data-grounded personas")
     else:
         personas = build_personas()
+    # The believe-the-dashboard adversary (§ snapshot_only): one extra call per persona,
+    # no interview. It brackets the interview from the other side -- if it matches the
+    # interviewer, the conversation added nothing. On by default; SNAPSHOT_ONLY=0 skips it.
+    run_snapshot_only = os.getenv("SNAPSHOT_ONLY", "1") != "0"
+
     results: list[Result] = []
     transcripts: list[Transcript] = []
     for persona in personas:
@@ -237,7 +266,10 @@ def main() -> int:
               file=sys.stderr)
         t = run_persona(persona, client)
         transcripts.append(t)
-        r = to_result(persona, t)
+        snap = None
+        if run_snapshot_only:
+            snap, _ = snapshot_only_reason(persona, ACME, client=client)
+        r = to_result(persona, t, snapshot_only=snap)
         results.append(r)
         print_transcript(persona, t, r)
 
