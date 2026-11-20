@@ -195,7 +195,7 @@
   <nav class="nav-links">
     <a href="/" class="nav-link">Home</a>
     <a href="/docs" class="nav-link on">Docs</a>
-    <a href="/onboard" class="nav-link">Set up</a>
+    <a href="#keys" class="nav-link">Set up</a>
   </nav>
   <select class="ver" id="ver" aria-label="SDK version — jump to its changelog" title="SDK version — jump to its changelog">
     <option value="0-1-3">v0.1.3 · latest</option>
@@ -252,7 +252,9 @@
     </div>
 
     <h2 id="keys"><span class="step">2</span>Get your keys</h2>
-    <p><a class="link" href="/onboard">Set up a tenant</a> to generate two keys instantly — no account, no waiting:</p>
+    <p>Run the setup CLI with your signup code. It asks for your product, your save offers and your
+      Anthropic API key (interviews run on your own Claude account), then prints two keys:</p>
+    <pre><code>npx offboard init</code></pre>
     <ul>
       <li><strong><code>public_key</code></strong> (<code>pk_…</code>) — safe to ship in your frontend. It identifies your tenant to Offboard.</li>
       <li><strong><code>signing_secret</code></strong> (<code>ss_…</code>) — <strong>backend only</strong>. It signs the identity tokens that authorize paid save offers. Shown once at setup — store it now.</li>
@@ -593,7 +595,7 @@ export function signIdentity(secret, claims) {
     </div>
 
     <hr class="hr" />
-    <p style="margin-top:24px">Ready? <a class="link" href="/onboard">Set up your tenant</a> to get keys, then
+    <p style="margin-top:24px">Ready? Run <code>npx offboard init</code> to get keys, then
       drop the SDK behind your cancel button. Sessions and retained MRR show up in your
       <a class="link" href="/dashboard">dashboard</a>.</p>
   </main>
@@ -609,7 +611,7 @@ export function signIdentity(secret, claims) {
     <nav class="links">
       <a href="/">Home</a>
       <a href="/docs">Docs</a>
-      <a href="/onboard">Set up</a>
+      <a href="/docs#keys">Set up</a>
       <a href="/dashboard">Dashboard</a>
       <a href="/health">Status</a>
     </nav>

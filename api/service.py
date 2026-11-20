@@ -94,9 +94,12 @@ def update_customer(customer_id: str, updates: dict, registry, config_dir: str) 
         "offers": updates["offers"],
         "competitors": updates.get("competitors", []),
         "allowed_origins": updates.get("allowed_origins", []),
+        # A new Claude key replaces the stored one; omitted/blank keeps the existing key.
+        "anthropic_api_key": updates.get("anthropic_api_key"),
     }
     # Carry the EXISTING signing_secret forward -- an update must never rotate it.
-    record = build_record(spec, signing_secret=existing.signing_secret)
+    record = build_record(spec, signing_secret=existing.signing_secret,
+                          anthropic_api_key=existing.anthropic_api_key)
     path = write_customer_file(record, config_dir, overwrite=True)
     registry.register(load_customer_file(path))     # same public_key -> replaces in place
     return {
@@ -135,6 +138,7 @@ def list_customers(registry) -> list[dict]:
             "product_name": c.config.product_name,
             "offers": len(c.config.interventions),
             "has_signing_secret": bool(c.signing_secret),
+            "has_anthropic_key": bool(c.anthropic_api_key),
             "allowed_origins": list(c.allowed_origins),
         })
     return sorted(rows, key=lambda r: r["customer_id"])

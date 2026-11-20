@@ -6,7 +6,7 @@ Milestone 2 it's an in-memory map seeded with one demo customer.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from engine import ProductConfig
@@ -30,6 +30,9 @@ class Customer:
     # set, a cross-origin request from an unlisted site is rejected 403 -- defense in depth
     # against a lifted key being driven from an attacker's page.
     allowed_origins: tuple[str, ...] = ()
+    # The tenant's OWN Anthropic API key: their interviews bill to their account, not ours.
+    # Encrypted at rest like signing_secret; repr=False keeps it out of logs and tracebacks.
+    anthropic_api_key: Optional[str] = field(default=None, repr=False)
 
 
 class CustomerRegistry:

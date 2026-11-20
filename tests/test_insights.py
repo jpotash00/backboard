@@ -205,7 +205,7 @@ def test_recent_activity_reads_events(tmp_path):
 def _client(tmp_path):
     return TestClient(create_app(
         registry=CustomerRegistry(), store=SessionStore(),
-        logger=TranscriptLogger(directory=str(tmp_path)), client_factory=lambda: None,
+        logger=TranscriptLogger(directory=str(tmp_path)), client_factory=lambda *_: None,
         admin_key=ADMIN, signup_key=SIGNUP, config_dir=str(tmp_path / "configs")))
 
 
@@ -213,7 +213,8 @@ def _provision(client, customer_id):
     spec = {"customer_id": customer_id,
             "product": {"product_name": "Acme", "product_context": "analytics",
                         "activation_definition": "connected a source", "pricing_summary": "$49 / $199"},
-            "offers": [{"type": "discount", "description": "50% off for 3 months"}]}
+            "offers": [{"type": "discount", "description": "50% off for 3 months"}],
+            "anthropic_api_key": "sk-ant-test"}
     return client.post("/onboard", json=spec, headers={"Authorization": f"Bearer {SIGNUP}"}).json()
 
 

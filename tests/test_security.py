@@ -68,7 +68,7 @@ def secured_app(tmp_path, allowed_origins=(), model=None):
         registry=reg,
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: model,
+        client_factory=lambda *_: model,
         now=lambda: NOW,
     )
     return TestClient(app), model
@@ -210,7 +210,7 @@ def test_per_ip_limit_keys_off_forwarded_ip_behind_proxy(tmp_path):
         registry=reg,
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: CapturingClient(),
+        client_factory=lambda *_: CapturingClient(),
         now=lambda: NOW,
         limiter=limiter,
         trusted_proxy_hops=1,

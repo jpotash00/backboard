@@ -47,7 +47,7 @@ def _app(tmp_path, admin_key=ADMIN, signup_key=SIGNUP, outputs=None):
         registry=CustomerRegistry(),
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: ScriptedClient(outputs or []),
+        client_factory=lambda *_: ScriptedClient(outputs or []),
         admin_key=admin_key,
         signup_key=signup_key,
         config_dir=str(tmp_path / "configs"),
@@ -65,6 +65,7 @@ def _spec(customer_id="acme"):
             "pricing_summary": "Starter $49, Growth $199",
         },
         "offers": [{"type": "discount", "description": "50% off for 3 months"}],
+        "anthropic_api_key": "sk-ant-test",  # self-serve tenants must bring their own Claude key
     }
 
 
@@ -85,7 +86,6 @@ def test_self_serve_provisions_itself_with_the_signup_code(tmp_path):
 def test_onboard_disabled_when_no_signup_key(tmp_path):
     client = _app(tmp_path, signup_key=None)
     assert client.post("/onboard", json=_spec(), headers=_signup()).status_code == 404
-    assert client.get("/onboard").status_code == 404
 
 
 def test_wrong_signup_code_is_rejected(tmp_path):
@@ -110,13 +110,6 @@ def test_admin_key_is_not_accepted_as_a_signup_code_and_vice_versa(tmp_path):
     assert client.post("/onboard", json=_spec(), headers={"Authorization": f"Bearer {ADMIN}"}).status_code == 401
 
 
-def test_onboard_page_is_served_when_enabled(tmp_path):
-    client = _app(tmp_path)
-    r = client.get("/onboard")
-    assert r.status_code == 200
-    assert "text/html" in r.headers["content-type"]
-
-
 def test_self_served_customer_is_live_immediately(tmp_path):
     import time
     from api.identity import sign_identity
@@ -135,3 +128,10 @@ def test_self_served_customer_is_live_immediately(tmp_path):
         headers={"Authorization": f"Bearer {key}"},
     )
     assert r.status_code == 200
+
+
+def test_self_serve_requires_own_claude_key(tmp_path):
+    client = _app(tmp_path)
+    spec = {k: v for k, v in _spec().items() if k != "anthropic_api_key"}
+    r = client.post("/onboard", json=spec, headers=_signup())
+    assert r.status_code == 422 and "Anthropic API key" in r.json()["detail"]

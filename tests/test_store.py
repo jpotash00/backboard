@@ -126,7 +126,7 @@ def _registry():
 def _redis_store(fake=None):
     fake = fake or _FakeRedis()
     store = RedisSessionStore(
-        fake, _registry(), client_factory=lambda: _FakeModel(), ttl_seconds=120,
+        fake, _registry(), client_factory=lambda *_: _FakeModel(), ttl_seconds=120,
     )
     return store, fake
 
@@ -169,6 +169,6 @@ def test_redis_store_missing_key_is_none():
 def test_redis_store_deprovisioned_customer_reads_as_gone():
     # Session written, then its customer removed from the registry -> safe "not found".
     fake = _FakeRedis()
-    RedisSessionStore(fake, _registry(), lambda: _FakeModel(), ttl_seconds=120).create(_state())
-    empty = RedisSessionStore(fake, CustomerRegistry(), lambda: _FakeModel())
+    RedisSessionStore(fake, _registry(), lambda *_: _FakeModel(), ttl_seconds=120).create(_state())
+    empty = RedisSessionStore(fake, CustomerRegistry(), lambda *_: _FakeModel())
     assert empty.get("sess1") is None

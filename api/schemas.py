@@ -44,6 +44,8 @@ class ConfigSpecRequest(BaseModel):
     offers: list[OfferSpec] = Field(min_length=1)
     allowed_origins: list[str] = Field(default_factory=list)
     competitors: list[str] = Field(default_factory=list)
+    # The tenant's own Anthropic API key (sk-ant-...). Write-only: stored encrypted, never returned.
+    anthropic_api_key: Optional[str] = Field(default=None, max_length=300)
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -55,6 +57,8 @@ class ConfigUpdateRequest(BaseModel):
     offers: list[OfferSpec] = Field(min_length=1)
     allowed_origins: list[str] = Field(default_factory=list)
     competitors: list[str] = Field(default_factory=list)
+    # The tenant's own Anthropic API key (sk-ant-...). Write-only: stored encrypted, never returned.
+    anthropic_api_key: Optional[str] = Field(default=None, max_length=300)
 
 
 class CreateSessionRequest(BaseModel):

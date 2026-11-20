@@ -48,7 +48,7 @@ def _app(tmp_path, outputs=None, admin_key=ADMIN):
         registry=CustomerRegistry(),
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: ScriptedClient(outputs or []),
+        client_factory=lambda *_: ScriptedClient(outputs or []),
         admin_key=admin_key,
         config_dir=str(tmp_path / "configs"),
     ))

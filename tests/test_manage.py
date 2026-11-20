@@ -50,7 +50,7 @@ def _client(tmp_path):
         registry=CustomerRegistry(),
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: ScriptedClient([]),
+        client_factory=lambda *_: ScriptedClient([]),
         admin_key=ADMIN,
         signup_key=SIGNUP,
         config_dir=str(tmp_path / "configs"),
@@ -67,6 +67,7 @@ def _spec(customer_id):
             "pricing_summary": "$49 / $199",
         },
         "offers": [{"type": "discount", "description": "50% off for 3 months"}],
+        "anthropic_api_key": "sk-ant-test",
     }
 
 

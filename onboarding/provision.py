@@ -46,7 +46,8 @@ REQUIRED_PRODUCT_FIELDS = (
 )
 
 
-def build_record(spec: dict, *, signing_secret: Optional[str] = None) -> dict:
+def build_record(spec: dict, *, signing_secret: Optional[str] = None,
+                 anthropic_api_key: Optional[str] = None) -> dict:
     """Tiny spec -> full customer envelope (ready to write or POST /configs). Shape of `spec`:
 
         {
@@ -104,6 +105,9 @@ def build_record(spec: dict, *, signing_secret: Optional[str] = None) -> dict:
         "public_key": str(public_key),
         "signing_secret": signing_secret or secrets.token_hex(32),
         "allowed_origins": list(spec.get("allowed_origins", ())),
+        # The tenant's own Claude key (their interviews bill to them). Optional at provision time;
+        # a tenant without one can't open sessions until it's added via PATCH /configs.
+        "anthropic_api_key": (spec.get("anthropic_api_key") or "").strip() or anthropic_api_key,
         "config": config_to_dict(config),
     }
 
@@ -135,15 +139,17 @@ def write_customer_file(record: dict, config_dir: str, *, overwrite: bool = Fals
         )
 
     to_write = dict(record)
-    secret = record.get("signing_secret")
-    if secret and not str(secret).startswith("enc:"):
+    for name in ("signing_secret", "anthropic_api_key"):
+        secret = record.get(name)
+        if not secret or str(secret).startswith("enc:"):
+            continue
         if key_configured():
-            to_write["signing_secret"] = encrypt_secret(secret)
+            to_write[name] = encrypt_secret(secret)
         else:
             print(
-                "WARNING: OFFBOARD_CONFIG_KEY is not set -- writing the signing_secret in "
-                "PLAINTEXT. Anyone who can read this file can forge identity tokens. Set a "
-                "master key and run `python -m onboarding.encrypt_configs` before going live."
+                f"WARNING: OFFBOARD_CONFIG_KEY is not set -- writing the {name} in "
+                "PLAINTEXT. Anyone who can read this file can use it. Set a master key and "
+                "run `python -m onboarding.encrypt_configs` before going live."
             )
 
     path.write_text(json.dumps(to_write, indent=2) + "\n")

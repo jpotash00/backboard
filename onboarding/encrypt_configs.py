@@ -32,11 +32,13 @@ def encrypt_dir(config_dir: str) -> tuple[int, int]:
     encrypted = skipped = 0
     for path in files:
         data = json.loads(path.read_text())
-        secret = data.get("signing_secret")
-        if not secret or is_encrypted(secret):
+        names = [n for n in ("signing_secret", "anthropic_api_key")
+                 if data.get(n) and not is_encrypted(data[n])]
+        if not names:
             skipped += 1
             continue
-        data["signing_secret"] = encrypt_secret(secret)
+        for n in names:
+            data[n] = encrypt_secret(data[n])
         path.write_text(json.dumps(data, indent=2) + "\n")
         try:
             path.chmod(0o600)

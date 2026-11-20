@@ -31,6 +31,7 @@ def load_customer_file(path: Union[str, Path]) -> Customer:
         config=config_from_dict(data["config"]),
         signing_secret=decrypt_secret(data.get("signing_secret")),
         allowed_origins=tuple(data.get("allowed_origins", ())),
+        anthropic_api_key=decrypt_secret(data.get("anthropic_api_key")),
     )
 
 

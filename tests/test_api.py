@@ -53,7 +53,7 @@ def make_client(outputs, tmp_path):
     app = create_app(
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: ScriptedClient(outputs),
+        client_factory=lambda *_: ScriptedClient(outputs),
     )
     return TestClient(app)
 
@@ -159,7 +159,7 @@ def test_signals_reach_the_interviewer_prompt(tmp_path):
     app = create_app(
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: CapturingClient(),
+        client_factory=lambda *_: CapturingClient(),
     )
     client = TestClient(app)
     r = client.post("/sessions", json={"user_id": "u", "signals": {"seats_used": 7}},
@@ -288,7 +288,7 @@ def _holdout_client(tmp_path, outputs, fraction):
         registry=reg,
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
-        client_factory=lambda: ScriptedClient(outputs),
+        client_factory=lambda *_: ScriptedClient(outputs),
     )
     return TestClient(app)
 

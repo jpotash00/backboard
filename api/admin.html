@@ -108,6 +108,7 @@
       <div class="row">
         <div><label>competitors <span class="hint">comma-separated, optional</span></label><input id="competitors" placeholder="Amplitude, Mixpanel" /></div>
         <div><label>allowed_origins <span class="hint">comma-separated, optional</span></label><input id="allowed_origins" placeholder="https://app.acme.com" /></div>
+        <div><label>anthropic_api_key <span class="hint">the tenant's own Claude key; write-only</span></label><input id="anthropic_api_key" type="password" autocomplete="off" placeholder="sk-ant-…" /></div>
       </div>
 
       <label style="margin-top:20px">Authorized offer menu <span class="hint">required — declared, never inferred</span></label>
@@ -229,6 +230,7 @@
       offers,
       competitors: csv("competitors"),
       allowed_origins: csv("allowed_origins"),
+      anthropic_api_key: $("anthropic_api_key").value.trim() || undefined,
     };
     $("submit").disabled = true;
     status.textContent = "provisioning…";
@@ -236,7 +238,7 @@
       const r = await api("POST", "/configs", spec);
       showSuccess(r);
       status.textContent = "";
-      ["customer_id", "public_key", "product_name", "product_context", "activation_definition", "pricing_summary", "competitors", "allowed_origins"].forEach((id) => ($(id).value = ""));
+      ["customer_id", "public_key", "product_name", "product_context", "activation_definition", "pricing_summary", "competitors", "allowed_origins", "anthropic_api_key"].forEach((id) => ($(id).value = ""));
       $("offers").innerHTML = ""; addOfferRow();
       await refreshList();
     } catch (e) {

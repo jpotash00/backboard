@@ -140,7 +140,7 @@ class RedisSessionStore:
         self,
         redis_client,
         registry,
-        client_factory: Callable[[], object],
+        client_factory: Callable[["Customer"], object],
         ttl_seconds: int = DEFAULT_TTL_SECONDS,
         prefix: str = "offboard:session:",
     ) -> None:
@@ -171,7 +171,7 @@ class RedisSessionStore:
         customer = self._registry.get_by_id(data.get("customer_id"))
         if customer is None:
             return None  # customer de-provisioned since the session started; treat as gone
-        state = restore(data, customer.config, self._client_factory())
+        state = restore(data, customer.config, self._client_factory(customer))
         self._r.expire(self._key(session_id), self._ttl)  # touch: slide the TTL forward
         return state
 
@@ -179,7 +179,7 @@ class RedisSessionStore:
 def redis_store_from_url(
     url: str,
     registry,
-    client_factory: Callable[[], object],
+    client_factory: Callable[["Customer"], object],
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
 ) -> RedisSessionStore:
     """Build a RedisSessionStore from a connection URL. `redis` is an optional dependency

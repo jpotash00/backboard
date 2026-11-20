@@ -88,20 +88,31 @@ def _resolve_client_ip(peer: str, forwarded: str, trusted_proxy_hops: int) -> st
     return peer
 
 
-def _lazy_anthropic_factory() -> Callable[[], object]:
-    """Create the anthropic client on first use, not at import time -- so the app can
-    be constructed (and health-checked) without ANTHROPIC_API_KEY present. A request timeout
-    and a single retry cap tail latency so one slow call can't hang the modal indefinitely."""
+class MissingModelKey(Exception):
+    """The tenant hasn't added its own Anthropic API key, so there's nothing to bill the call to."""
+
+
+def _lazy_anthropic_factory() -> Callable[[Customer], object]:
+    """Per-tenant anthropic client, created on first use and cached by key. Each tenant brings
+    its own key (bring-your-own-Claude), so interviews bill to the tenant, not the operator. The
+    public demo tenants may fall back to the operator's ANTHROPIC_API_KEY when one is set; real
+    tenants never do. A request timeout and a single retry cap tail latency so one slow call
+    can't hang the modal indefinitely."""
     cached: dict[str, object] = {}
 
-    def factory() -> object:
-        if "client" not in cached:
+    def factory(customer: Customer) -> object:
+        key = customer.anthropic_api_key
+        if not key and customer.id in DEMO_TENANTS:
+            key = os.getenv("ANTHROPIC_API_KEY")
+        if not key:
+            raise MissingModelKey(customer.id)
+        if key not in cached:
             import anthropic
 
-            cached["client"] = anthropic.Anthropic(
-                timeout=MODEL_TIMEOUT_SECONDS, max_retries=1
+            cached[key] = anthropic.Anthropic(
+                api_key=key, timeout=MODEL_TIMEOUT_SECONDS, max_retries=1
             )
-        return cached["client"]
+        return cached[key]
 
     return factory
 
@@ -154,7 +165,7 @@ def create_app(
     registry: Optional[CustomerRegistry] = None,
     store: Optional[SessionStore] = None,
     logger: Optional[TranscriptLogger] = None,
-    client_factory: Optional[Callable[[], object]] = None,
+    client_factory: Optional[Callable[[Customer], object]] = None,
     allow_origins: Optional[list[str]] = None,
     limiter: Optional[RateLimiter] = None,
     now: Callable[[], float] = time.time,
@@ -281,7 +292,14 @@ def create_app(
         if customer.id in DEMO_TENANTS:
             _rate_limit(request, customer, (DEMO_SESSIONS_PER_DAY, 86400), (10**9, 86400), "demo-day")
         try:
-            return start_session(store, client_factory(), customer, req, now=int(now()))
+            return start_session(store, client_factory(customer), customer, req, now=int(now()))
+        except MissingModelKey:
+            logger.log_event(customer.id, "model_error", "no Anthropic API key configured",
+                             meta={"endpoint": "sessions"})
+            raise HTTPException(
+                status_code=409,
+                detail="this account has no Claude API key configured; add one via PATCH /configs",
+            )
         except IdentityRejected as exc:
             logger.log_event(customer.id, "identity_rejected", str(exc), meta={"endpoint": "sessions"})
             raise HTTPException(status_code=401, detail=str(exc))
@@ -450,17 +468,12 @@ def create_app(
     def self_serve_onboard(req: ConfigSpecRequest, _: None = Depends(authenticate_signup)) -> dict:
         # Customer-driven provisioning: same create-only body as /configs, gated by the signup
         # code instead of the admin key. This is what lets a customer set themselves up from a
-        # shared link with no operator in the loop.
+        # shared link with no operator in the loop. Self-serve tenants bring their own Claude key
+        # (their interviews bill to them), so it's required here -- unlike operator /configs.
+        key = (req.anthropic_api_key or "").strip()
+        if not key.startswith("sk-ant-"):
+            raise HTTPException(status_code=422, detail="an Anthropic API key (sk-ant-...) is required")
         return _provision(req)
-
-    @app.get("/onboard", include_in_schema=False)
-    def onboard_page() -> FileResponse:
-        # The customer-facing signup form. Reads its signup code from the URL (?code=...), so a
-        # shared link is one click to a working form; holds no secret itself. 404 when self-serve
-        # is off, so an unconfigured deployment doesn't advertise a signup surface.
-        if not signup_key:
-            raise HTTPException(status_code=404, detail="not found")
-        return FileResponse(Path(__file__).parent / "onboard.html")
 
     def authorize_manage(customer_id: str, authorization: str) -> None:
         """Auth for editing/deleting a specific tenant. Accepts EITHER the master admin key (you,
