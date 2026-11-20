@@ -3,6 +3,21 @@
 All notable changes to the `offboard` package are documented here. This project
 follows [Semantic Versioning](https://semver.org).
 
+## [0.2.0] — 2026-11-19
+
+### Added
+- `npx offboard init`: a setup CLI. It asks for your signup code, product details, the save
+  offers you authorize, and your Anthropic API key, registers your account, and prints your
+  `public_key` (frontend) and `signing_secret` (backend, shown once). Set
+  `OFFBOARD_SIGNUP_CODE` to skip the code prompt and `OFFBOARD_API_URL` to target a
+  self-hosted engine. Node 18+, no dependencies.
+
+### Changed
+- Bring your own Claude key: interviews run on your own Anthropic account. The key is
+  required at signup, stored encrypted, and never returned. A session for an account with no
+  key fails with `409`.
+- Signup is CLI-only; the `/onboard` web form is gone. The browser SDK API is unchanged.
+
 ## [0.1.5] — 2026-07-10
 
 ### Fixed

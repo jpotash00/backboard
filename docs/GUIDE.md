@@ -196,7 +196,7 @@ to it; you host it (or use the managed endpoint).
 
 ```bash
 pip install -e ".[api]"
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=sk-ant-...   # only for the built-in demo tenant; real tenants bring their own
 python -m api.app            # serves on :8000 (PORT env to change)
 ```
 
@@ -245,6 +245,18 @@ Every completed session is appended to `runs/sessions.jsonl` (full transcript + 
 ---
 
 ## 4. Onboarding a company (the config model)
+
+**Customers set themselves up from the terminal:**
+
+```bash
+npx offboard init     # signup code, product facts, offer menu, their Anthropic API key
+```
+
+It POSTs to `/onboard` (gated by `OFFBOARD_SIGNUP_KEY`), which validates the spec, mints the
+`signing_secret`, stores the tenant's Anthropic key encrypted, and hot-registers the tenant.
+Each tenant **brings their own Claude key**: their interviews bill to their Anthropic account,
+never the operator's. A tenant with no key gets `409` on `POST /sessions`. Operators can still
+provision directly (below); there the key is optional so demo tenants work.
 
 > **You rarely author a config from scratch — you review a proposed one.** The
 > `onboarding.propose_config` step takes your pasted pricing/docs plus the list of saves
@@ -331,6 +343,7 @@ The envelope wraps the `ProductConfig` with the customer's key, signing secret, 
   "public_key": "pk_live_acme",
   "signing_secret": "…",                  // REQUIRED in prod — or the browser can spoof its economics
   "allowed_origins": ["https://app.acme.com"],
+  "anthropic_api_key": "enc:…",           // the tenant's own Claude key, encrypted at rest
   "config": { /* the ProductConfig, serialized — see engine.config_to_dict */ }
 }
 ```
@@ -516,7 +529,10 @@ diagnosis.
 
 | Var | Default | Effect |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | required to run the interviewer |
+| `ANTHROPIC_API_KEY` | — | optional: runs interviews for the demo tenants (acme/zen) only. Real tenants use their own `anthropic_api_key` |
+| `OFFBOARD_SIGNUP_KEY` | — | signup code for `npx offboard init` (`POST /onboard`); unset = self-serve signup disabled (404) |
+| `OFFBOARD_CONFIG_KEY` | — | master key that encrypts each tenant's `signing_secret` and Anthropic key at rest; **required in prod** |
+| `OFFBOARD_DEMO_DAILY_SESSIONS` | `100` | daily session cap for the public demo tenants |
 | `OFFBOARD_CONFIG_DIR` | — | load customers from JSON configs; else demo `pk_demo_acme` |
 | `OFFBOARD_RUNS_DIR` | `runs` | where the append-only data asset is written — point at a mounted volume in prod |
 | `OFFBOARD_REDIS_URL` | — | set to use the shared/durable session store (multi-instance / zero-downtime); else in-memory |
@@ -536,10 +552,11 @@ Deploying for real (topologies, volumes, the `signing_secret` rule, TLS): see
 - **Custom-taxonomy typing in the SDK.** `Reason` in `sdk/src/types.ts` is the default
   SaaS union. If a customer runs a custom taxonomy, treat `outcome.reason` as an opaque
   string on the client.
-- **Runtime provisioning is single-instance.** Two ways to onboard a customer: the file drop
+- **Runtime provisioning is single-instance.** Three ways to onboard a customer: the setup CLI
+  (`npx offboard init` → `POST /onboard`, signup-code auth), the file drop
   (`python -m onboarding.provision`, loaded **at boot** — needs a restart) and **`POST /configs`**
-  (admin-key auth via `OFFBOARD_ADMIN_KEY`), which validates, mints the signing secret, persists
-  the file, and **hot-registers into the live process — no restart**. The remaining edge:
+  (admin-key auth via `OFFBOARD_ADMIN_KEY`). Both endpoints validate, mint the signing secret, persist
+  the file, and **hot-register into the live process — no restart**. The remaining edge:
   hot-register mutates one process's in-memory registry, so on a multi-instance deployment a
   customer added via `POST /configs` is live immediately on the instance that handled it and
   everywhere else on each instance's next restart (via the persisted file). Immediate

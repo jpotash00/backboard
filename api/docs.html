@@ -198,7 +198,10 @@
     <a href="#keys" class="nav-link">Set up</a>
   </nav>
   <select class="ver" id="ver" aria-label="SDK version — jump to its changelog" title="SDK version — jump to its changelog">
-    <option value="0-1-3">v0.1.3 · latest</option>
+    <option value="0-2-0">v0.2.0 · latest</option>
+    <option value="0-1-5">v0.1.5</option>
+    <option value="0-1-4">v0.1.4</option>
+    <option value="0-1-3">v0.1.3</option>
     <option value="0-1-2">v0.1.2</option>
     <option value="0-1-1">v0.1.1</option>
     <option value="0-1-0">v0.1.0</option>
@@ -255,9 +258,11 @@
     <p>Run the setup CLI with your signup code. It asks for your product, your save offers and your
       Anthropic API key (interviews run on your own Claude account), then prints two keys:</p>
     <pre><code>npx offboard init</code></pre>
+    <p>Set <code>OFFBOARD_SIGNUP_CODE</code> to skip the code prompt. Your Anthropic key is required, stored
+      encrypted and never shown again; Offboard never runs an interview on anyone else's account.</p>
     <ul>
       <li><strong><code>public_key</code></strong> (<code>pk_…</code>) — safe to ship in your frontend. It identifies your tenant to Offboard.</li>
-      <li><strong><code>signing_secret</code></strong> (<code>ss_…</code>) — <strong>backend only</strong>. It signs the identity tokens that authorize paid save offers. Shown once at setup — store it now.</li>
+      <li><strong><code>signing_secret</code></strong> (a 64-character hex string) — <strong>backend only</strong>. It signs the identity tokens that authorize paid save offers. Shown once at setup — store it now.</li>
     </ul>
     <div class="note">Onboarding also captures your product context, pricing, and the save offers you're
       willing to make. Offboard only ever proposes offers <em>you</em> configured — it never invents a discount on its own.</div>
@@ -558,9 +563,10 @@ export function signIdentity(secret, claims) {
         <tr><td><code>401</code> requires a signed identity_token</td><td>Key has a signing secret but no token was sent.</td><td>Mint one on your backend and pass it as <code>identityToken</code>.</td></tr>
         <tr><td><code>401</code> token expired / bad signature</td><td>Token older than 10 min, or signed with the wrong secret.</td><td>Sign at click-time with the current <code>signing_secret</code> — never cache it.</td></tr>
         <tr><td><code>403</code> origin not allowed</td><td>The page's origin isn't in your allowlist.</td><td>Add it to your allowed origins during onboarding.</td></tr>
+        <tr><td><code>409</code> no Claude API key configured</td><td>Your account has no Anthropic API key, so there's nothing to run the interview on.</td><td>Add your key (contact support, or re-run setup). Until then the modal lets the user cancel normally.</td></tr>
         <tr><td><code>404</code> session not found</td><td>The session is unknown or expired mid-flow.</td><td>Start a fresh flow; don't reuse a session across page loads.</td></tr>
         <tr><td><code>429</code> rate limit exceeded</td><td>Too many attempts from one key or IP.</td><td>Back off for the <code>Retry-After</code> seconds; a normal cancel flow won't trip this.</td></tr>
-        <tr><td><code>502</code> temporary error</td><td>A transient upstream failure.</td><td>The modal auto-degrades to letting the user cancel — no one is trapped — so just retry.</td></tr>
+        <tr><td><code>502</code> temporary error</td><td>A transient upstream failure, or your Anthropic key was rejected (revoked, out of credit).</td><td>The modal auto-degrades to letting the user cancel — no one is trapped — so just retry.</td></tr>
       </tbody>
     </table>
 
@@ -568,8 +574,26 @@ export function signIdentity(secret, claims) {
     <p>Every published version of the <code>offboard</code> npm package, newest first. The version
       selector in the header jumps to any release here. Upgrade with <code>npm i offboard@latest</code>.</p>
     <div class="log">
+      <div class="rel" id="v0-2-0">
+        <div class="rel-h"><span class="tag">v0.2.0</span><span class="latest">Latest</span><span class="date">Nov 19, 2026</span></div>
+        <ul>
+          <li><strong>Setup CLI.</strong> <code>npx offboard init</code> registers your account from the terminal and prints
+            your keys. See <a class="link" href="#keys">Get your keys</a>.</li>
+          <li><strong>Bring your own Claude key.</strong> Interviews run on your Anthropic account. The key is required at
+            setup and stored encrypted; an account without one gets <code>409</code>.</li>
+          <li>Signup is CLI-only; the web signup form is gone. No browser SDK API changes.</li>
+        </ul>
+      </div>
+      <div class="rel" id="v0-1-5">
+        <div class="rel-h"><span class="tag">v0.1.5</span><span class="date">Jul 10, 2026</span></div>
+        <ul><li>The offer card no longer shows the internal decision rationale; new optional <code>offerSubtext</code>.</li></ul>
+      </div>
+      <div class="rel" id="v0-1-4">
+        <div class="rel-h"><span class="tag">v0.1.4</span><span class="date">Jul 10, 2026</span></div>
+        <ul><li>The modal's message log scrolls reliably on short viewports. CSS-only fix.</li></ul>
+      </div>
       <div class="rel" id="v0-1-3">
-        <div class="rel-h"><span class="tag">v0.1.3</span><span class="latest">Latest</span><span class="date">Jul 10, 2026</span></div>
+        <div class="rel-h"><span class="tag">v0.1.3</span><span class="date">Jul 10, 2026</span></div>
         <ul>
           <li><strong>Typed <code>intervention.params</code>.</strong> An accepted offer now carries a structured
             <code>params</code> handle — e.g. <code>{ stripe_coupon: "off50_3mo" }</code> — echoed back to
