@@ -230,6 +230,8 @@ class Interviewer:
         for _ in range(2):
             resp = self.client.messages.create(
                 model=self.model, max_tokens=2000, system=system, messages=self.messages,
+                # Short JSON reply: low effort cuts billed thinking tokens on every turn.
+                output_config={"effort": "low"},
             )
             # claude-sonnet-5 may return thinking block(s) before the text; concatenate the
             # text blocks rather than assuming content[0] is text.

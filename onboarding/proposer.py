@@ -94,7 +94,7 @@ def propose_config(inp: ProposalInput, client=None) -> Proposal:
     user = _prompt(inp)
 
     resp = client.messages.create(
-        model=ONBOARD_MODEL, max_tokens=2000, system=system,
+        model=ONBOARD_MODEL, max_tokens=2000, system=system, output_config={"effort": "low"},
         messages=[{"role": "user", "content": user}],
     )
     data = _parse(_text_of(resp))

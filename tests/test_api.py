@@ -352,3 +352,13 @@ def test_outcomes_endpoint_needs_auth(tmp_path):
     r = client.post("/outcomes", json={"user_id": "u", "active": True,
                                        "observed_at": "2026-03-01T00:00:00+00:00"})
     assert r.status_code == 401
+
+
+def test_demo_tenant_daily_session_cap(tmp_path, monkeypatch):
+    # The public demo tenants are unauthenticated spend on our Anthropic key; cap them per day.
+    import api.app as app_mod
+    monkeypatch.setattr(app_mod, "DEMO_SESSIONS_PER_DAY", 1)
+    ask = json.dumps({"action": "ask", "message": "Why cancel?"})
+    client = make_client([ask, ask], tmp_path)
+    assert client.post("/sessions", json={"user_id": "u1"}, headers=AUTH).status_code == 200
+    assert client.post("/sessions", json={"user_id": "u2"}, headers=AUTH).status_code == 429

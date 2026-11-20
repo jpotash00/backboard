@@ -65,6 +65,10 @@ SESSION_LIMIT_PER_KEY = (30, 60)
 SESSION_LIMIT_PER_IP = (20, 60)
 TURN_LIMIT_PER_KEY = (120, 60)
 TURN_LIMIT_PER_IP = (120, 60)
+# The public /demo tenants need no login, so anyone can spend the Anthropic key through them.
+# Cap their total sessions per day. ponytail: per-process unless OFFBOARD_REDIS_URL is set.
+DEMO_TENANTS = {"acme", "zen"}
+DEMO_SESSIONS_PER_DAY = int(os.getenv("OFFBOARD_DEMO_DAILY_SESSIONS", "100"))
 
 
 def _resolve_client_ip(peer: str, forwarded: str, trusted_proxy_hops: int) -> str:
@@ -274,6 +278,8 @@ def create_app(
         customer: Customer = Depends(authenticate),
     ) -> CreateSessionResponse:
         _rate_limit(request, customer, SESSION_LIMIT_PER_KEY, SESSION_LIMIT_PER_IP, "session")
+        if customer.id in DEMO_TENANTS:
+            _rate_limit(request, customer, (DEMO_SESSIONS_PER_DAY, 86400), (10**9, 86400), "demo-day")
         try:
             return start_session(store, client_factory(), customer, req, now=int(now()))
         except IdentityRejected as exc:

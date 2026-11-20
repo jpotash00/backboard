@@ -93,6 +93,7 @@ class Persona:
             # model than the interviewer so a same-model shared prior can't inflate the score.
             model=model or PERSONA_MODEL,
             max_tokens=1200,  # room for a thinking block plus the short spoken reply
+            output_config={"effort": "low"},
             system=PERSONA_SYSTEM.format(
                 product_name=config.product_name,
                 personality=self.personality,
