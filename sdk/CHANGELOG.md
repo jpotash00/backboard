@@ -3,6 +3,12 @@
 All notable changes to the `offboard` package are documented here. This project
 follows [Semantic Versioning](https://semver.org).
 
+## [0.2.1] — 2026-11-19
+
+### Changed
+- Open signup: `npx offboard init` no longer asks for a signup code (`OFFBOARD_SIGNUP_CODE` is
+  gone). Signups are capped per IP; every account still brings its own Anthropic key.
+
 ## [0.2.0] — 2026-11-19
 
 ### Added

@@ -42,14 +42,13 @@ class ScriptedClient:
         return _M()
 
 
-def _app(tmp_path, admin_key=ADMIN, signup_key=SIGNUP, outputs=None):
+def _app(tmp_path, admin_key=ADMIN, outputs=None):
     return TestClient(create_app(
         registry=CustomerRegistry(),
         store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)),
         client_factory=lambda *_: ScriptedClient(outputs or []),
         admin_key=admin_key,
-        signup_key=signup_key,
         config_dir=str(tmp_path / "configs"),
     ))
 
@@ -83,31 +82,23 @@ def test_self_serve_provisions_itself_with_the_signup_code(tmp_path):
     assert body["customer_id"] == "acme"
 
 
-def test_onboard_disabled_when_no_signup_key(tmp_path):
-    client = _app(tmp_path, signup_key=None)
-    assert client.post("/onboard", json=_spec(), headers=_signup()).status_code == 404
-
-
-def test_wrong_signup_code_is_rejected(tmp_path):
+def test_open_signup_needs_no_credential(tmp_path):
     client = _app(tmp_path)
-    r = client.post("/onboard", json=_spec(), headers=_signup("wrong"))
-    assert r.status_code == 401
+    assert client.post("/onboard", json=_spec()).status_code == 201
 
 
-def test_signup_code_cannot_list_or_manage_other_tenants(tmp_path):
-    """Isolation: the signup code is create-only. A customer holding it cannot enumerate the
-    roster (that's admin-only), so no customer can see another."""
+def test_open_signup_is_create_only(tmp_path):
+    """Signing up grants nothing over other tenants: the roster stays admin-only."""
     client = _app(tmp_path)
-    client.post("/onboard", json=_spec("acme"), headers=_signup())
-    client.post("/onboard", json=_spec("globex"), headers=_signup())
-    # The admin roster endpoint must reject the signup code outright.
-    assert client.get("/configs", headers=_signup()).status_code == 401
+    client.post("/onboard", json=_spec("acme"))
+    client.post("/onboard", json=_spec("globex"))
+    assert client.get("/configs").status_code == 401
 
 
-def test_admin_key_is_not_accepted_as_a_signup_code_and_vice_versa(tmp_path):
+def test_open_signup_is_rate_limited_per_ip(tmp_path):
     client = _app(tmp_path)
-    # admin key on the self-serve endpoint is not the signup code
-    assert client.post("/onboard", json=_spec(), headers={"Authorization": f"Bearer {ADMIN}"}).status_code == 401
+    codes = [client.post("/onboard", json=_spec(f"t{i}")).status_code for i in range(6)]
+    assert codes == [201] * 5 + [429]
 
 
 def test_self_served_customer_is_live_immediately(tmp_path):

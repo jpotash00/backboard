@@ -19,10 +19,9 @@ npm install offboard
 npx offboard init
 ```
 
-Asks for your signup code, product details, the save offers you authorize, and your Anthropic API key
-(interviews run on your own Claude account; the key is stored encrypted and never shown again). It prints
-your `public_key` (frontend) and `signing_secret` (backend only, shown once). Set `OFFBOARD_SIGNUP_CODE`
-to skip the code prompt.
+Asks for your product details, the save offers you authorize, and your Anthropic API key (interviews run
+on your own Claude account; the key is stored encrypted and never shown again). It prints your
+`public_key` (frontend) and `signing_secret` (backend only, shown once). No account or signup code needed.
 
 ## Use
 

@@ -68,6 +68,8 @@ TURN_LIMIT_PER_IP = (120, 60)
 # The public /demo tenants need no login, so anyone can spend the Anthropic key through them.
 # Cap their total sessions per day. ponytail: per-process unless OFFBOARD_REDIS_URL is set.
 DEMO_TENANTS = {"acme", "zen"}
+# Open signup (POST /onboard) needs no credential, so cap new tenants per IP.
+ONBOARD_LIMIT_PER_IP = (5, 3600)
 DEMO_SESSIONS_PER_DAY = int(os.getenv("OFFBOARD_DEMO_DAILY_SESSIONS", "100"))
 
 
@@ -172,7 +174,6 @@ def create_app(
     admin_key: Optional[str] = None,
     config_dir: Optional[str] = None,
     trusted_proxy_hops: Optional[int] = None,
-    signup_key: Optional[str] = None,
 ) -> FastAPI:
     _seed_demo_configs()  # before default_registry() globs the dir; no-op unless OFFBOARD_SEED_DEMO
     registry = registry or default_registry()
@@ -182,11 +183,6 @@ def create_app(
     # customer files are persisted (defaults to the same dir the registry loaded from).
     admin_key = admin_key if admin_key is not None else os.getenv("OFFBOARD_ADMIN_KEY")
     config_dir = config_dir if config_dir is not None else os.getenv("OFFBOARD_CONFIG_DIR")
-    # Self-serve onboarding surface (POST/GET /onboard). A SEPARATE secret from the master
-    # admin_key: it's create-only (a customer can provision ITSELF but can't list/delete/read
-    # other tenants), and it's rotatable if a shared signup link leaks. Unset = self-serve is
-    # disabled (404), same fail-safe stance as the admin surface.
-    signup_key = signup_key if signup_key is not None else os.getenv("OFFBOARD_SIGNUP_KEY")
     # Backend selection: a shared Redis store (multiple instances / zero-downtime deploys) when
     # OFFBOARD_REDIS_URL is set, else the process-local store (single instance). Both the store
     # AND the rate limiter follow this switch -- a per-process limiter on a multi-instance deploy
@@ -453,23 +449,17 @@ def create_app(
             raise HTTPException(status_code=404, detail="not found")
         return FileResponse(Path(__file__).parent / "admin.html")
 
-    def authenticate_signup(authorization: str = Header(default="")) -> None:
-        """Self-serve onboarding auth for /onboard. A shared SIGNUP secret (OFFBOARD_SIGNUP_KEY),
-        distinct from the master admin key -- a customer provisions ITSELF with this, but it grants
-        no read/list/delete over other tenants. Disabled (404) when unset, so it never sits open."""
-        if not signup_key:
-            raise HTTPException(status_code=404, detail="not found")
-        prefix = "Bearer "
-        presented = authorization[len(prefix):].strip() if authorization.startswith(prefix) else ""
-        if not presented or not hmac.compare_digest(presented, signup_key):
-            raise HTTPException(status_code=401, detail="invalid signup code")
-
     @app.post("/onboard", status_code=201)
-    def self_serve_onboard(req: ConfigSpecRequest, _: None = Depends(authenticate_signup)) -> dict:
-        # Customer-driven provisioning: same create-only body as /configs, gated by the signup
-        # code instead of the admin key. This is what lets a customer set themselves up from a
-        # shared link with no operator in the loop. Self-serve tenants bring their own Claude key
-        # (their interviews bill to them), so it's required here -- unlike operator /configs.
+    def self_serve_onboard(req: ConfigSpecRequest, request: Request) -> dict:
+        # Open self-serve signup (`npx offboard init`): same create-only body as /configs, no
+        # credential. Safe to leave open because every tenant brings its own Claude key, so a
+        # stranger can't spend ours; create-only means it grants nothing over other tenants. The
+        # per-IP cap stops a script from flooding the config volume with junk tenants.
+        try:
+            limiter.check(f"onboard:ip:{_client_ip(request)}", *ONBOARD_LIMIT_PER_IP)
+        except RateLimitExceeded as exc:
+            raise HTTPException(status_code=429, detail="too many signups; try again later",
+                                headers={"Retry-After": str(exc.retry_after)})
         key = (req.anthropic_api_key or "").strip()
         if not key.startswith("sk-ant-"):
             raise HTTPException(status_code=422, detail="an Anthropic API key (sk-ant-...) is required")

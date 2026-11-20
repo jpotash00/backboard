@@ -249,10 +249,10 @@ Every completed session is appended to `runs/sessions.jsonl` (full transcript + 
 **Customers set themselves up from the terminal:**
 
 ```bash
-npx offboard init     # signup code, product facts, offer menu, their Anthropic API key
+npx offboard init     # product facts, offer menu, their Anthropic API key
 ```
 
-It POSTs to `/onboard` (gated by `OFFBOARD_SIGNUP_KEY`), which validates the spec, mints the
+It POSTs to `/onboard` (open signup, 5 per IP per hour), which validates the spec, mints the
 `signing_secret`, stores the tenant's Anthropic key encrypted, and hot-registers the tenant.
 Each tenant **brings their own Claude key**: their interviews bill to their Anthropic account,
 never the operator's. A tenant with no key gets `409` on `POST /sessions`. Operators can still
@@ -530,7 +530,6 @@ diagnosis.
 | Var | Default | Effect |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | optional: runs interviews for the demo tenants (acme/zen) only. Real tenants use their own `anthropic_api_key` |
-| `OFFBOARD_SIGNUP_KEY` | — | signup code for `npx offboard init` (`POST /onboard`); unset = self-serve signup disabled (404) |
 | `OFFBOARD_CONFIG_KEY` | — | master key that encrypts each tenant's `signing_secret` and Anthropic key at rest; **required in prod** |
 | `OFFBOARD_DEMO_DAILY_SESSIONS` | `100` | daily session cap for the public demo tenants |
 | `OFFBOARD_CONFIG_DIR` | — | load customers from JSON configs; else demo `pk_demo_acme` |
@@ -553,7 +552,7 @@ Deploying for real (topologies, volumes, the `signing_secret` rule, TLS): see
   SaaS union. If a customer runs a custom taxonomy, treat `outcome.reason` as an opaque
   string on the client.
 - **Runtime provisioning is single-instance.** Three ways to onboard a customer: the setup CLI
-  (`npx offboard init` → `POST /onboard`, signup-code auth), the file drop
+  (`npx offboard init` → `POST /onboard`, open and rate-limited), the file drop
   (`python -m onboarding.provision`, loaded **at boot** — needs a restart) and **`POST /configs`**
   (admin-key auth via `OFFBOARD_ADMIN_KEY`). Both endpoints validate, mint the signing secret, persist
   the file, and **hot-register into the live process — no restart**. The remaining edge:

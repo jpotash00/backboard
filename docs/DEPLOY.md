@@ -15,8 +15,9 @@ right and the rest is a standard container deploy.
 - [ ] `OFFBOARD_CONFIG_KEY` set as a secret **and backed up** (a password manager). It encrypts
       every tenant's `signing_secret` and Anthropic key; lose it and every encrypted tenant fails
       to load (the app refuses to boot) and must be re-provisioned.
-- [ ] `OFFBOARD_SIGNUP_KEY` set, so customers can run `npx offboard init`. Each tenant brings its
-      own Claude key there (required); it's stored encrypted and their interviews bill to them.
+- [ ] Signup is open: customers run `npx offboard init` (no code; capped at 5 signups per IP per
+      hour). Each tenant brings its own Claude key there (required); it's stored encrypted and
+      their interviews bill to them.
       `ANTHROPIC_API_KEY` is only an optional fallback for the public demo tenants (acme/zen),
       capped per day by `OFFBOARD_DEMO_DAILY_SESSIONS`.
 - [ ] **Every production customer has a `signing_secret`** — otherwise the browser can spoof its
@@ -99,7 +100,6 @@ means your API's uptime is now tied to Redis's. Size/monitor it accordingly.
 | `OFFBOARD_REDIS_URL` | topology B | (unset → in-memory) | Redis connection URL. Set it to run multiple instances. Also switches the rate limiter to a **shared** Redis counter — without it a per-process limiter lets the effective limit scale to N× on N instances. |
 | `OFFBOARD_TRUSTED_PROXY_HOPS` | prod-behind-proxy | `0` | Number of trusted proxies in front of the app, for reading the real client IP from `X-Forwarded-For`. `0` trusts only the socket peer. **Behind an edge/ingress (Fly, an ALB) that peer is the proxy, so the per-IP rate limit collapses into one global bucket — set this to `1` for a single edge** (the hop count is read from the right, so it can't be spoofed by a client prepending entries). |
 | `OFFBOARD_ADMIN_KEY` | optional | (unset → disabled) | Secret bearer token enabling `POST /configs` runtime provisioning (validates, mints the secret, persists, hot-registers — no restart). Unset = endpoint returns 404. |
-| `OFFBOARD_SIGNUP_KEY` | optional | (unset → disabled) | Shared signup code for **self-serve** onboarding via the CLI (`npx offboard init` → `POST /onboard`). Distinct from the admin key: it's **create-only** (a customer provisions itself, can't list/read/delete other tenants). Give it to customers with the CLI command. Rotatable if leaked. Unset = `/onboard` returns 404. |
 | `OFFBOARD_CONFIG_KEY` | **prod** | (unset → plaintext) | Master key (Fernet; mint with `python -c "from api.crypto import generate_key; print(generate_key())"`) that **encrypts each customer's `signing_secret` and Anthropic API key at rest**. **Back it up**: it can't be recovered, and a lost key means every encrypted tenant must be re-provisioned. Set it as a platform secret — never on the config volume. Unset = secrets written in plaintext (a loud warning fires). Comma-separate multiple keys to rotate (first encrypts, all decrypt). |
 | `OFFBOARD_LOG_PEPPER` | **prod** | (unset → raw ids) | Secret pepper that pseudonymizes `user_id` in the run logs via HMAC. Deterministic, so joins survive; **write-once** — rotating it breaks joins to historical rows. Unset = raw ids logged (dev only). |
 | `OFFBOARD_RETENTION_DAYS` | optional | `90` | Retention window for `python -m api.retention`. Must exceed your experiment horizon + outcome-reporting lag (floor 45d) or the sweep refuses. |
@@ -207,7 +207,6 @@ OFFBOARD_CONFIG_DIR=configs offboard-api        # serves on :8000
 docker build -t offboard-api .
 docker run -p 8000:8000 \
   -e OFFBOARD_CONFIG_KEY=... \
-  -e OFFBOARD_SIGNUP_KEY=... \
   -e OFFBOARD_CONFIG_DIR=/config \
   -e OFFBOARD_REDIS_URL=redis://redis:6379/0 \
   -v offboard-data:/data \
@@ -224,12 +223,12 @@ npm SDK** that calls it. Do them in this order; the SDK is inert until the API i
 
 ### 0. Decide, once
 - A domain for the API, e.g. `api.offboard.dev` (must match the SDK's base URL — see step 3).
-- A signup code (`OFFBOARD_SIGNUP_KEY`) to give customers. They bring their own Anthropic key.
+- Nothing for customers' model access: they bring their own Anthropic key at signup.
 - An npm account, and the package name (`offboard`, or `@your-org/offboard` if taken).
 
 ### 1. Provision the customer on disk
-> Normally the customer does this themselves with `npx offboard init` (needs
-> `OFFBOARD_SIGNUP_KEY`). Use the operator path below to provision on their behalf.
+> Normally the customer does this themselves with `npx offboard init`. Use the operator
+> path below to provision on their behalf.
 
 Write a **tiny spec** — only the four product facts + the authorized offer menu; taxonomy,
 policy, and economics all come from validated defaults (template: `docs/customer-spec.example.json`):
@@ -268,7 +267,6 @@ fly volumes create offboard_data --size 1    # persistent disk for /data (runs +
 fly redis create                             # managed Redis -> copy the redis:// URL
 fly secrets set \
   OFFBOARD_CONFIG_KEY=… \
-  OFFBOARD_SIGNUP_KEY=… \
   OFFBOARD_REDIS_URL=redis://…@…:6379 \
   OFFBOARD_CONFIG_DIR=/data/configs \
   OFFBOARD_RUNS_DIR=/data/runs

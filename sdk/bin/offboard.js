@@ -14,7 +14,7 @@ const slugify = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replac
 const csv = (s) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
 if (argv[2] !== "init") {
-  console.log("usage: npx offboard init\n\nenv: OFFBOARD_SIGNUP_CODE, OFFBOARD_API_URL (default https://offboard.fly.dev)");
+  console.log("usage: npx offboard init\n\nenv: OFFBOARD_API_URL (default https://offboard.fly.dev)");
   exit(argv[2] ? 1 : 0);
 }
 
@@ -34,7 +34,6 @@ const ask = async (q, { required = true, def = "" } = {}) => {
 };
 
 console.log("Offboard setup: registers your product and prints your keys.\n");
-let code = env.OFFBOARD_SIGNUP_CODE || (await ask("Signup code"));
 
 const product = {
   product_name: await ask("Product name"),
@@ -68,7 +67,7 @@ for (;;) {
   try {
     res = await fetch(`${API}/onboard`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${code}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(spec),
     });
   } catch (e) {
@@ -83,9 +82,8 @@ for (;;) {
     console.log("\n  Next: npm install offboard, then see https://www.npmjs.com/package/offboard");
     break;
   }
-  if (res.status === 401) { console.log("  ✖ Invalid signup code"); code = await ask("Signup code"); continue; }
   if (res.status === 409) { console.log(`  ✖ "${customer_id}" is taken`); customer_id = ""; continue; }
-  if (res.status === 404) { console.error("\n✖ Self-serve signup is not enabled on this server."); exit(1); }
+  if (res.status === 429) { console.error("\n✖ Too many signups from this network; try again in an hour."); exit(1); }
   console.error(`\n✖ ${res.status}: ${JSON.stringify(body.detail ?? body)}`);
   exit(1);
 }

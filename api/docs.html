@@ -198,7 +198,8 @@
     <a href="#keys" class="nav-link">Set up</a>
   </nav>
   <select class="ver" id="ver" aria-label="SDK version — jump to its changelog" title="SDK version — jump to its changelog">
-    <option value="0-2-0">v0.2.0 · latest</option>
+    <option value="0-2-1">v0.2.1 · latest</option>
+    <option value="0-2-0">v0.2.0</option>
     <option value="0-1-5">v0.1.5</option>
     <option value="0-1-4">v0.1.4</option>
     <option value="0-1-3">v0.1.3</option>
@@ -255,10 +256,10 @@
     </div>
 
     <h2 id="keys"><span class="step">2</span>Get your keys</h2>
-    <p>Run the setup CLI with your signup code. It asks for your product, your save offers and your
+    <p>Run the setup CLI. No account or signup code needed. It asks for your product, your save offers and your
       Anthropic API key (interviews run on your own Claude account), then prints two keys:</p>
     <pre><code>npx offboard init</code></pre>
-    <p>Set <code>OFFBOARD_SIGNUP_CODE</code> to skip the code prompt. Your Anthropic key is required, stored
+    <p>Your Anthropic key is required, stored
       encrypted and never shown again; Offboard never runs an interview on anyone else's account.</p>
     <ul>
       <li><strong><code>public_key</code></strong> (<code>pk_…</code>) — safe to ship in your frontend. It identifies your tenant to Offboard.</li>
@@ -574,8 +575,12 @@ export function signIdentity(secret, claims) {
     <p>Every published version of the <code>offboard</code> npm package, newest first. The version
       selector in the header jumps to any release here. Upgrade with <code>npm i offboard@latest</code>.</p>
     <div class="log">
+      <div class="rel" id="v0-2-1">
+        <div class="rel-h"><span class="tag">v0.2.1</span><span class="latest">Latest</span><span class="date">Nov 19, 2026</span></div>
+        <ul><li><strong>Open signup.</strong> <code>npx offboard init</code> no longer asks for a signup code.</li></ul>
+      </div>
       <div class="rel" id="v0-2-0">
-        <div class="rel-h"><span class="tag">v0.2.0</span><span class="latest">Latest</span><span class="date">Nov 19, 2026</span></div>
+        <div class="rel-h"><span class="tag">v0.2.0</span><span class="date">Nov 19, 2026</span></div>
         <ul>
           <li><strong>Setup CLI.</strong> <code>npx offboard init</code> registers your account from the terminal and prints
             your keys. See <a class="link" href="#keys">Get your keys</a>.</li>

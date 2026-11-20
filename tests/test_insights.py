@@ -206,7 +206,7 @@ def _client(tmp_path):
     return TestClient(create_app(
         registry=CustomerRegistry(), store=SessionStore(),
         logger=TranscriptLogger(directory=str(tmp_path)), client_factory=lambda *_: None,
-        admin_key=ADMIN, signup_key=SIGNUP, config_dir=str(tmp_path / "configs")))
+        admin_key=ADMIN, config_dir=str(tmp_path / "configs")))
 
 
 def _provision(client, customer_id):
